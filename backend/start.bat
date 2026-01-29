@@ -1,0 +1,13 @@
+@echo off
+echo Starting DSMS Backend Server...
+echo.
+cd /d %~dp0
+echo Checking Node.js...
+node --version
+echo.
+echo Installing dependencies...
+call npm install
+echo.
+echo Starting server...
+call npm run dev
+pause
