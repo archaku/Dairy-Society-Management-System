@@ -3,7 +3,20 @@ const router = express.Router();
 const User = require('../models/User');
 const Farmer = require('../models/Farmer');
 const Admin = require('../models/Admin');
+const OTP = require('../models/OTP');
 const jwt = require('jsonwebtoken');
+const nodemailer = require('nodemailer');
+
+// Configure nodemailer
+const transporter = nodemailer.createTransport({
+  host: 'smtp.gmail.com',
+  port: 465,
+  secure: true, // use SSL
+  auth: {
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS
+  }
+});
 
 // Generate JWT Token
 const generateToken = (userId, role) => {
@@ -23,7 +36,7 @@ const generateToken = (userId, role) => {
 // - Admin: Can provide notifications to farmers about cattle feeds and other products
 router.post('/register', async (req, res) => {
   try {
-    const { username, email, password, firstName, lastName, phone, aadhar, role, address } = req.body;
+    const { username, email, password, firstName, lastName, phone, aadhar, role, address, otp } = req.body;
 
     console.log('Registration attempt:', { username, email, role });
 
@@ -35,13 +48,24 @@ router.post('/register', async (req, res) => {
       });
     }
 
-    // Validate required fields
-    if (!username || !email || !password || !firstName || !lastName || !phone || !address) {
+    if (!username || !email || !password || !firstName || !lastName || !phone || !address || !otp) {
       return res.status(400).json({
         success: false,
-        message: 'All required fields must be provided including address'
+        message: 'All fields including OTP and address are required'
       });
     }
+
+    // Verify OTP
+    const otpRecord = await OTP.findOne({ email, otp });
+    if (!otpRecord) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid or expired OTP'
+      });
+    }
+
+    // Delete OTP record after successful verification (optional, TTL will handle it)
+    await OTP.deleteMany({ email });
 
     // Validate Aadhar for farmers
     if (role === 'farmer' && !aadhar) {
@@ -151,6 +175,80 @@ router.post('/register', async (req, res) => {
       success: false,
       message: error.message || 'Server error during registration. Please check server logs.',
       error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+});
+
+// @route   POST /api/auth/send-otp
+// @desc    Send OTP to email
+// @access  Public
+router.post('/send-otp', async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email is required'
+      });
+    }
+
+    // Generate 6-digit OTP
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+
+    // Log OTP to console immediately (CRITICAL for testing)
+    console.log('-----------------------------------------');
+    console.log(`NEW OTP GENERATED for ${email}: ${otp}`);
+    console.log('-----------------------------------------');
+
+    // Save OTP to database
+    await OTP.findOneAndUpdate(
+      { email },
+      { otp, createdAt: new Date() },
+      { upsert: true, new: true }
+    );
+
+    // Send email
+    console.log(`Attempting to send OTP from: ${process.env.EMAIL_USER}`);
+
+    const mailOptions = {
+      from: process.env.EMAIL_USER,
+      to: email,
+      subject: 'Email Verification - DSMS',
+      html: `
+        <div style="font-family: Arial, sans-serif; padding: 20px; color: #333; border: 1px solid #ddd; border-top: 4px solid #667eea; border-radius: 8px;">
+          <h2 style="color: #2c3e50;">DSMS Verification</h2>
+          <p>Hi there,</p>
+          <p>You requested a verification code for the Dairy Society Management System.</p>
+          <div style="background-color: #f1f3f5; padding: 20px; margin: 20px 0; font-size: 32px; font-weight: bold; letter-spacing: 8px; text-align: center; border-radius: 8px; color: #2c3e50;">
+            ${otp}
+          </div>
+          <p>This OTP is valid for 10 minutes. If you did not request this, please ignore this email.</p>
+          <p style="margin-top: 30px; border-top: 1px solid #eee; padding-top: 10px; font-size: 12px; color: #888;">
+            © 2026 Dairy Society Management System
+          </p>
+        </div>
+      `
+    };
+
+    try {
+      await transporter.sendMail(mailOptions);
+      res.json({
+        success: true,
+        message: 'OTP sent successfully to your email'
+      });
+    } catch (mailError) {
+      console.error('SMTP Error (Email sending failed):', mailError.message);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to send verification email. Please check if your App Password in .env is correct.'
+      });
+    }
+  } catch (error) {
+    console.error('Send OTP error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to send OTP. Please check if the email credentials in .env are correct.'
     });
   }
 });

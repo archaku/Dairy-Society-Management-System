@@ -2,13 +2,34 @@ import React from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import { FaUser, FaSignOutAlt, FaCheese, FaUserTie, FaShoppingCart, FaFillDrip, FaHistory, FaCalculator } from 'react-icons/fa';
-import './Dashboard.css';
+import { 
+  Box, Drawer, AppBar, Toolbar, List, ListItem, ListItemButton, 
+  ListItemIcon, ListItemText, Typography, Button, IconButton, 
+  Container, Paper, Grid, Card, CardContent, Avatar, Chip, 
+  TextField, InputAdornment, useTheme, useMediaQuery, Fade,
+  Menu, MenuItem, Divider, Tooltip, Dialog, DialogTitle, 
+  DialogContent, DialogActions, FormControlLabel, Checkbox,
+  Table, TableBody, TableCell, TableHead, TableRow, Rating
+} from '@mui/material';
+import { 
+  User, LogOut, ShoppingCart, History, Droplets, Leaf, 
+  ChartBar, Calendar, MapPin, Users, Star, TrendingUp, 
+  Award, Package, BarChart3, ChevronRight, Menu as MenuIcon,
+  CircleCheck, CircleX, Sprout, ShoppingBag, Info, UserCheck,
+  Search, DownloadCloud, Plus, Minus, Milk
+} from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as ChartTooltip, Legend, ResponsiveContainer, BarChart, Bar, Cell } from 'recharts';
+
+const DRAWER_WIDTH = 260;
 
 const Dashboard = () => {
   const { user, token, logout } = useAuth();
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = React.useState('profile'); // 'profile', 'history'
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+  const [mobileOpen, setMobileOpen] = React.useState(false);
+  const [activeTab, setActiveTab] = React.useState('profile');
   const [milkRecords, setMilkRecords] = React.useState([]);
   const [purchases, setPurchases] = React.useState([]);
   const [availability, setAvailability] = React.useState({ available: 0, rate: 50, deliveryCharge: 10 });
@@ -16,8 +37,78 @@ const Dashboard = () => {
   const [loadingAvailability, setLoadingAvailability] = React.useState(false);
   const [purchaseQty, setPurchaseQty] = React.useState('');
   const [deliveryType, setDeliveryType] = React.useState('COD');
+  const [distance, setDistance] = React.useState('');
   const [purchaseMessage, setPurchaseMessage] = React.useState({ type: '', text: '' });
   const [searchQuery, setSearchQuery] = React.useState('');
+  const [workshops, setWorkshops] = React.useState([]);
+  const [loadingWorkshops, setLoadingWorkshops] = React.useState(false);
+  const [bookingMessage, setBookingMessage] = React.useState({ id: null, text: '', type: '' });
+  const [supplements, setSupplements] = React.useState([]);
+  const [cart, setCart] = React.useState({}); // { supplementId: quantity }
+  const [supplementCategory, setSupplementCategory] = React.useState('All');
+  const [orderMessage, setOrderMessage] = React.useState({ text: '', type: '' });
+  const [directAvailabilities, setDirectAvailabilities] = React.useState([]);
+  const [myDirectRequests, setMyDirectRequests] = React.useState([]);
+  const [farmerDirectRequests, setFarmerDirectRequests] = React.useState([]);
+  const [farmerAvailQty, setFarmerAvailQty] = React.useState('');
+  const [farmerPrice, setFarmerPrice] = React.useState(50);
+  const [directSaleMessage, setDirectSaleMessage] = React.useState({ text: '', type: '' });
+  const [feedbackData, setFeedbackData] = React.useState({ id: null, rating: 5, feedback: '' });
+  const [farmerReviews, setFarmerReviews] = React.useState({ farmerId: null, reviews: [] });
+  const [showReviewsModal, setShowReviewsModal] = React.useState(false);
+  const [analyticsData, setAnalyticsData] = React.useState({
+    income: [],
+    benchmark: { farmerAvg: 0, societyAvg: 0, isAboveAverage: false },
+    rating: { average: 0, count: 0 }
+  });
+  const [sortConfig, setSortConfig] = React.useState({ key: 'date', direction: 'desc' });
+  const [directBuyQtys, setDirectBuyQtys] = React.useState({});
+
+  const getDirectBuyQty = (id) => directBuyQtys[id] || 1;
+  const setDirectBuyQty = (id, val) => setDirectBuyQtys(prev => ({ ...prev, [id]: val }));
+
+  const formatDateTime = (dateStr) => {
+    if (!dateStr) return 'N/A';
+    const date = new Date(dateStr);
+    return date.toLocaleString('en-IN', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true
+    }).toUpperCase();
+  };
+
+  const requestSort = (key) => {
+    let direction = 'asc';
+    if (sortConfig.key === key && sortConfig.direction === 'asc') {
+      direction = 'desc';
+    }
+    setSortConfig({ key, direction });
+  };
+
+  const filteredRecords = milkRecords.filter(record => {
+    const searchLower = searchQuery.toLowerCase();
+    const dateStr = new Date(record.date).toLocaleDateString();
+    return (
+      dateStr.includes(searchLower) ||
+      record.status.toLowerCase().includes(searchLower) ||
+      record.quantity.toString().includes(searchLower) ||
+      record.totalAmount.toString().includes(searchLower)
+    );
+  });
+
+  const filteredPurchases = purchases.filter(purchase => {
+    const searchLower = searchQuery.toLowerCase();
+    const dateStr = new Date(purchase.date).toLocaleDateString();
+    return (
+      dateStr.includes(searchLower) ||
+      purchase.status.toLowerCase().includes(searchLower) ||
+      purchase.quantity.toString().includes(searchLower) ||
+      purchase.totalAmount.toString().includes(searchLower)
+    );
+  });
 
   const handleLogout = () => {
     logout();
@@ -25,17 +116,56 @@ const Dashboard = () => {
   };
 
   React.useEffect(() => {
-    if (activeTab === 'history' && user?.role === 'farmer') {
-      fetchMilkHistory();
-    }
-    if (activeTab === 'my-purchases' && user?.role === 'user') {
-      fetchMyPurchases();
-    }
-    if (activeTab === 'purchase' && user?.role === 'user') {
-      fetchAvailability();
-    }
-  }, [activeTab]);
+    const fetchData = async () => {
+      try {
+        setLoadingRecords(true);
+        setLoadingAvailability(true);
+        setLoadingWorkshops(true);
+        const config = { headers: { Authorization: `Bearer ${token}` } };
 
+        const [milkRes, purchaseRes, availRes, workshopRes, supplementRes, directAvailRes, myDirectRes, farmerDirectRes, analyticsRes] = await Promise.all([
+          user?.role === 'farmer' ? axios.get('http://localhost:5000/api/milk/farmer', config) : Promise.resolve({ data: { records: [] } }),
+          user?.role === 'user' ? axios.get('http://localhost:5000/api/purchase/user', config) : Promise.resolve({ data: { purchases: [] } }),
+          axios.get('http://localhost:5000/api/purchase/available'),
+          axios.get('http://localhost:5000/api/workshops', config),
+          axios.get('http://localhost:5000/api/supplements', config),
+          user?.role === 'user' ? axios.get('http://localhost:5000/api/direct-milk/farmers', config) : Promise.resolve({ data: { availabilities: [] } }),
+          user?.role === 'user' ? axios.get('http://localhost:5000/api/direct-milk/user/requests', config) : Promise.resolve({ data: { requests: [] } }),
+          user?.role === 'farmer' ? axios.get('http://localhost:5000/api/direct-milk/farmer/requests', config) : Promise.resolve({ data: { requests: [] } }),
+          user?.role === 'farmer' ? axios.get('http://localhost:5000/api/analytics/farmer', config) : Promise.resolve({ data: null })
+        ]);
+
+        setMilkRecords(milkRes.data.records || []);
+        setPurchases(purchaseRes.data.purchases || []);
+        setAvailability(availRes.data || { available: 0, rate: 50, deliveryCharge: 10 });
+        setWorkshops(workshopRes.data.workshops || []);
+        setSupplements(supplementRes.data.supplements || []);
+        setDirectAvailabilities(directAvailRes.data.availabilities || []);
+        setMyDirectRequests(myDirectRes.data.requests || []);
+        setFarmerDirectRequests(farmerDirectRes.data.requests || []);
+        if (analyticsRes && analyticsRes.data) {
+          setAnalyticsData({
+            income: analyticsRes.data.income || [],
+            benchmark: analyticsRes.data.benchmark || { farmerAvg: 0, societyAvg: 0, isAboveAverage: false },
+            rating: analyticsRes.data.rating || { average: 0, count: 0 }
+          });
+        }
+
+      } catch (error) {
+        console.error('Error fetching dashboard data:', error);
+      } finally {
+        setLoadingRecords(false);
+        setLoadingAvailability(false);
+        setLoadingWorkshops(false);
+      }
+    };
+
+    fetchData();
+  }, [user, token]);
+
+
+  // These individual fetch functions are now largely redundant if useEffect fetches all data
+  // but keeping them for potential specific re-fetches if needed.
   const fetchMilkHistory = async () => {
     try {
       setLoadingRecords(true);
@@ -76,6 +206,37 @@ const Dashboard = () => {
     }
   };
 
+  const fetchWorkshops = async () => {
+    try {
+      setLoadingWorkshops(true);
+      const response = await axios.get('http://localhost:5000/api/workshops', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setWorkshops(response.data.workshops);
+    } catch (error) {
+      console.error('Error fetching workshops:', error);
+    } finally {
+      setLoadingWorkshops(false);
+    }
+  };
+
+  const handleBooking = async (workshopId) => {
+    try {
+      setBookingMessage({ id: workshopId, text: 'Booking...', type: 'info' });
+      await axios.post(`http://localhost:5000/api/workshops/book/${workshopId}`, {}, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setBookingMessage({ id: workshopId, text: 'Booked Successfully!', type: 'success' });
+      fetchWorkshops();
+    } catch (error) {
+      setBookingMessage({
+        id: workshopId,
+        text: error.response?.data?.message || 'Booking failed',
+        type: 'error'
+      });
+    }
+  };
+
   const handlePurchase = async (e) => {
     e.preventDefault();
     if (!purchaseQty || purchaseQty <= 0) {
@@ -84,45 +245,313 @@ const Dashboard = () => {
     }
 
     try {
-      const response = await axios.post('http://localhost:5000/api/purchase',
-        {
-          quantity: parseFloat(purchaseQty),
-          deliveryType: deliveryType
+      const config = { headers: { Authorization: `Bearer ${token}` } };
+      const deliveryCharge = deliveryType === 'Takeaway' ? 0 : (distance ? parseFloat(distance) * 10 : 10);
+      const amount = (parseFloat(purchaseQty) * availability.rate) + deliveryCharge;
+
+      // 1. Create Razorpay Order
+      const orderRes = await axios.post('http://localhost:5000/api/payment/create-order', {
+        amount,
+        receipt: `receipt_milk_${Date.now()}`
+      }, config);
+
+      if (!orderRes.data.success) throw new Error('Payment initialization failed');
+
+      const { order } = orderRes.data;
+
+      // 2. Open Razorpay Checkout
+      const options = {
+        key: 'rzp_test_SQZX6y25mriFCf',
+        amount: order.amount,
+        currency: order.currency,
+        name: 'Dairy Society Management',
+        description: `Society Milk Purchase - ${purchaseQty}L`,
+        order_id: order.id,
+        handler: async (response) => {
+          try {
+            // 3. Verify Payment and Place Order
+            const verifyRes = await axios.post('http://localhost:5000/api/payment/verify', {
+              razorpay_order_id: response.razorpay_order_id,
+              razorpay_payment_id: response.razorpay_payment_id,
+              razorpay_signature: response.razorpay_signature
+            }, config);
+
+            if (verifyRes.data.success) {
+              const res = await axios.post('http://localhost:5000/api/purchase',
+                {
+                  quantity: parseFloat(purchaseQty),
+                  deliveryType: deliveryType,
+                  distance: deliveryType === 'COD' ? parseFloat(distance || 0) : 0,
+                  paymentId: response.razorpay_payment_id // Optional: link payment
+                },
+                config
+              );
+
+              if (res.data.success) {
+                setPurchaseMessage({ type: 'success', text: `Success! Payment processed and order placed.` });
+                setPurchaseQty('');
+                setDistance('');
+                fetchAvailability();
+                fetchMyPurchases();
+              }
+            }
+          } catch (err) {
+            setPurchaseMessage({ type: 'error', text: 'Payment verification failed' });
+          }
         },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      setPurchaseMessage({ type: 'success', text: `Order placed successfully! (${deliveryType === 'Takeaway' ? 'Takeaway' : 'COD'})` });
-      setPurchaseQty('');
-      fetchAvailability();
+        prefill: {
+          name: `${user.firstName} ${user.lastName}`,
+          email: user.email,
+          contact: user.phone || ''
+        },
+        theme: { color: '#1a5d1a' }
+      };
+
+      const rzp = new window.Razorpay(options);
+      rzp.open();
+
     } catch (error) {
-      setPurchaseMessage({
-        type: 'error',
-        text: error.response?.data?.message || 'Failed to place order'
-      });
+      const errorMsg = error.response?.data?.message || error.message || 'Order failed';
+      setPurchaseMessage({ type: 'error', text: errorMsg });
     }
   };
 
-  const filteredRecords = milkRecords.filter(record => {
-    const searchLower = searchQuery.toLowerCase();
-    const dateStr = new Date(record.date).toLocaleDateString();
-    return (
-      dateStr.includes(searchLower) ||
-      record.status.toLowerCase().includes(searchLower) ||
-      record.quantity.toString().includes(searchLower) ||
-      record.totalAmount.toString().includes(searchLower)
-    );
-  });
+  const addToCart = (id) => {
+    setCart(prev => ({
+      ...prev,
+      [id]: (prev[id] || 0) + 1
+    }));
+  };
 
-  const filteredPurchases = purchases.filter(purchase => {
-    const searchLower = searchQuery.toLowerCase();
-    const dateStr = new Date(purchase.date).toLocaleDateString();
-    return (
-      dateStr.includes(searchLower) ||
-      purchase.status.toLowerCase().includes(searchLower) ||
-      purchase.quantity.toString().includes(searchLower) ||
-      purchase.totalAmount.toString().includes(searchLower)
-    );
-  });
+  const removeFromCart = (id) => {
+    if (!cart[id]) return;
+    setCart(prev => {
+      const newCart = { ...prev };
+      if (newCart[id] > 1) {
+        newCart[id] -= 1;
+      } else {
+        delete newCart[id];
+      }
+      return newCart;
+    });
+  };
+
+  const handleSupplementOrder = async () => {
+    let amount = 0;
+    const items = Object.entries(cart).map(([id, quantity]) => {
+      const supplement = supplements.find(s => s._id === id);
+      if (!supplement) return null;
+      amount += (supplement.pricePerUnit * quantity);
+      return {
+        supplementId: id,
+        quantity,
+        priceAtTime: supplement.pricePerUnit
+      };
+    }).filter(item => item !== null);
+
+    if (items.length === 0) {
+      setOrderMessage({ text: 'Please add items to cart first!', type: 'error' });
+      return;
+    }
+
+    try {
+      const config = { headers: { Authorization: `Bearer ${token}` } };
+
+      // 1. Create Razorpay Order
+      const orderRes = await axios.post('http://localhost:5000/api/payment/create-order', {
+        amount,
+        receipt: `receipt_supp_${Date.now()}`
+      }, config);
+
+      if (!orderRes.data.success) throw new Error('Payment initialization failed');
+
+      const { order } = orderRes.data;
+
+      // 2. Open Razorpay Checkout
+      const options = {
+        key: 'rzp_test_SQZX6y25mriFCf',
+        amount: order.amount,
+        currency: order.currency,
+        name: 'Dairy Society Shop',
+        description: `Cattle Feed & Supplements Order`,
+        order_id: order.id,
+        handler: async (response) => {
+          try {
+            // 3. Verify Payment and Place Order
+            const verifyRes = await axios.post('http://localhost:5000/api/payment/verify', {
+              razorpay_order_id: response.razorpay_order_id,
+              razorpay_payment_id: response.razorpay_payment_id,
+              razorpay_signature: response.razorpay_signature
+            }, config);
+
+            if (verifyRes.data.success) {
+              const response = await axios.post('http://localhost:5000/api/supplements/purchase', { 
+                items,
+                paymentId: response.razorpay_payment_id
+              }, config);
+
+              if (response.data.success) {
+                setOrderMessage({ text: 'Success! Payment processed and order placed.', type: 'success' });
+                setCart({});
+              }
+            }
+          } catch (err) {
+            setOrderMessage({ text: 'Payment verification failed', type: 'error' });
+          }
+        },
+        prefill: {
+          name: `${user.firstName} ${user.lastName}`,
+          email: user.email,
+          contact: user.phone || ''
+        },
+        theme: { color: '#1a5d1a' }
+      };
+
+      const rzp = new window.Razorpay(options);
+      rzp.open();
+
+    } catch (error) {
+      const errorMsg = error.response?.data?.message || error.message || 'Order failed';
+      setOrderMessage({ text: errorMsg, type: 'error' });
+    }
+  };
+
+  const handleFarmerAvailability = async (e) => {
+    e.preventDefault();
+    const qty = parseFloat(farmerAvailQty);
+    const price = parseFloat(farmerPrice);
+
+    if (isNaN(qty) || isNaN(price)) {
+      setDirectSaleMessage({ text: 'Please enter valid numbers for quantity and price', type: 'error' });
+      return;
+    }
+
+    try {
+      const config = { headers: { Authorization: `Bearer ${token}` } };
+      await axios.post('http://localhost:5000/api/direct-milk/availability', {
+        availableQuantity: qty,
+        pricePerLiter: price
+      }, config);
+      setDirectSaleMessage({ text: 'Availability updated successfully!', type: 'success' });
+      // Refresh direct availabilities after update
+      const directAvailRes = await axios.get('http://localhost:5000/api/direct-milk/farmers', config);
+      setDirectAvailabilities(directAvailRes.data.availabilities || []);
+    } catch (error) {
+      console.error('Direct milk availability update error:', error);
+      const errorMsg = error.response?.data?.message || 'Failed to update availability';
+      setDirectSaleMessage({ text: errorMsg, type: 'error' });
+    }
+  };
+
+  const handleDirectPurchaseRequest = async (farmerId, qty, price) => {
+    try {
+      const amount = parseFloat(qty) * parseFloat(price);
+      const config = { headers: { Authorization: `Bearer ${token}` } };
+
+      // 1. Create Razorpay Order
+      const orderRes = await axios.post('http://localhost:5000/api/payment/create-order', {
+        amount,
+        receipt: `receipt_direct_${Date.now()}`
+      }, config);
+
+      if (!orderRes.data.success) throw new Error('Payment initialization failed');
+
+      const { order } = orderRes.data;
+
+      // 2. Open Razorpay Checkout
+      const options = {
+        key: 'rzp_test_SQZX6y25mriFCf',
+        amount: order.amount,
+        currency: order.currency,
+        name: 'Farmer Direct Sale',
+        description: `Direct Milk Purchase - ${qty}L`,
+        order_id: order.id,
+        handler: async (response) => {
+          try {
+            // 3. Verify Payment and Place Order
+            const verifyRes = await axios.post('http://localhost:5000/api/payment/verify', {
+              razorpay_order_id: response.razorpay_order_id,
+              razorpay_payment_id: response.razorpay_payment_id,
+              razorpay_signature: response.razorpay_signature
+            }, config);
+
+            if (verifyRes.data.success) {
+              const response = await axios.post('http://localhost:5000/api/direct-milk/request', {
+                farmerId,
+                quantity: parseFloat(qty),
+                paymentId: response.razorpay_payment_id
+              }, config);
+
+              if (response.data.success) {
+                setDirectSaleMessage({ text: 'Success! Payment done and request sent.', type: 'success' });
+                const res = await axios.get('http://localhost:5000/api/direct-milk/user/requests', config);
+                setMyDirectRequests(res.data.requests);
+              }
+            }
+          } catch (err) {
+            setDirectSaleMessage({ text: 'Payment verification failed', type: 'error' });
+          }
+        },
+        prefill: {
+          name: `${user.firstName} ${user.lastName}`,
+          email: user.email,
+          contact: user.phone || ''
+        },
+        theme: { color: '#1a5d1a' }
+      };
+
+      const rzp = new window.Razorpay(options);
+      rzp.open();
+
+    } catch (error) {
+      const errorMsg = error.response?.data?.message || error.message || 'Request failed';
+      setDirectSaleMessage({ text: errorMsg, type: 'error' });
+    }
+  };
+
+  const handleFarmerAction = async (requestId, action) => {
+    try {
+      const config = { headers: { Authorization: `Bearer ${token}` } };
+      await axios.put(`http://localhost:5000/api/direct-milk/farmer/action/${requestId}`, { action }, config);
+      // Refresh requests
+      const res = await axios.get('http://localhost:5000/api/direct-milk/farmer/requests', config);
+      setFarmerDirectRequests(res.data.requests);
+    } catch (error) {
+      console.error('Action failed', error);
+    }
+  };
+
+  const submitFeedback = async (e) => {
+    e.preventDefault();
+    try {
+      const config = { headers: { Authorization: `Bearer ${token}` } };
+      await axios.put(`http://localhost:5000/api/direct-milk/user/feedback/${feedbackData.id}`, {
+        rating: feedbackData.rating,
+        feedback: feedbackData.feedback
+      }, config);
+      setFeedbackData({ id: null, rating: 5, feedback: '' });
+      // Refresh requests and availabilities (to get new avg rating)
+      const [reqs, avails] = await Promise.all([
+        axios.get('http://localhost:5000/api/direct-milk/user/requests', config),
+        axios.get('http://localhost:5000/api/direct-milk/farmers', config)
+      ]);
+      setMyDirectRequests(reqs.data.requests);
+      setDirectAvailabilities(avails.data.availabilities);
+    } catch (error) {
+      console.error('Feedback failed', error);
+    }
+  };
+
+  const fetchFarmerReviews = async (farmerId) => {
+    try {
+      const config = { headers: { Authorization: `Bearer ${token}` } };
+      const res = await axios.get(`http://localhost:5000/api/direct-milk/farmer/${farmerId}/reviews`, config);
+      setFarmerReviews({ farmerId, reviews: res.data.reviews });
+      setShowReviewsModal(true);
+    } catch (error) {
+      console.error('Failed to fetch reviews', error);
+    }
+  };
 
   React.useEffect(() => {
     if (user?.role === 'admin') {
@@ -132,289 +561,1087 @@ const Dashboard = () => {
 
   const getRoleIcon = () => {
     switch (user?.role) {
-      case 'admin':
-        return <FaUserTie />;
-      case 'farmer':
-        return <FaCheese />;
-      case 'user':
-        return <FaShoppingCart />;
-      default:
-        return <FaUser />;
+      case 'admin': return <Award size={20} />;
+      case 'farmer': return <Droplets size={20} />;
+      case 'user': return <ShoppingCart size={20} />;
+      default: return <User size={20} />;
     }
   };
 
   const getRoleName = () => {
     switch (user?.role) {
-      case 'admin':
-        return 'Administrator';
-      case 'farmer':
-        return 'Farmer (Milk Seller)';
-      case 'user':
-        return 'Customer (Milk Buyer)';
-      default:
-        return 'User';
+      case 'admin': return 'Administrator';
+      case 'farmer': return 'Farmer (Milk Seller)';
+      case 'user': return 'Customer (Milk Buyer)';
+      default: return 'User';
     }
   };
 
-  const totalCost = purchaseQty ? (parseFloat(purchaseQty) * availability.rate + availability.deliveryCharge).toFixed(2) : '0.00';
+  const menuItems = user?.role === 'farmer' ? [
+    { id: 'profile', label: 'My Profile', icon: <User size={20} /> },
+    { id: 'history', label: 'Transaction Ledger', icon: <History size={20} /> },
+    { id: 'feed', label: 'Cattle Feed Shop', icon: <Leaf size={20} /> },
+    { id: 'direct-manage', label: 'Direct Sales', icon: <Droplets size={20} /> },
+    { id: 'analytics', label: 'Performance', icon: <ChartBar size={20} /> },
+  ] : [
+    { id: 'profile', label: 'My Profile', icon: <User size={20} /> },
+    { id: 'purchase', label: 'Society Milk', icon: <ShoppingCart size={20} /> },
+    { id: 'my-purchases', label: 'History & Invoices', icon: <History size={20} /> },
+    { id: 'direct-buy', label: 'Local Farmers', icon: <Droplets size={20} /> },
+  ];
+
+  const drawer = (
+    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', bgcolor: '#1a5d1a', color: 'white' }}>
+      <Box sx={{ p: 3, display: 'flex', alignItems: 'center', gap: 2, borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
+        <Box sx={{ bgcolor: 'white', p: 1, borderRadius: 2, display: 'flex' }}>
+          <Milk size={28} color="#1a5d1a" />
+        </Box>
+        <Typography variant="h6" sx={{ fontWeight: 800, letterSpacing: -0.5, lineHeight: 1 }}>
+          DSMS <br /> 
+          <Typography component="span" variant="caption" sx={{ opacity: 0.7, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 1 }}>
+            {user?.role} Portal
+          </Typography>
+        </Typography>
+      </Box>
+
+      <List sx={{ px: 2, py: 3, flexGrow: 1 }}>
+        {menuItems.map((item) => (
+          <ListItem key={item.id} disablePadding sx={{ mb: 1 }}>
+            <ListItemButton
+              onClick={() => {
+                setActiveTab(item.id);
+                if (isMobile) setMobileOpen(false);
+              }}
+              selected={activeTab === item.id}
+              sx={{
+                borderRadius: 2,
+                py: 1.5,
+                transition: 'all 0.2s',
+                '&.Mui-selected': {
+                  bgcolor: 'rgba(255, 255, 255, 0.15)',
+                  '&:hover': { bgcolor: 'rgba(255, 255, 255, 0.2)' },
+                },
+                '&:hover': { bgcolor: 'rgba(255, 255, 255, 0.05)' },
+              }}
+            >
+              <ListItemIcon sx={{ color: 'inherit', minWidth: 40 }}>
+                {item.icon}
+              </ListItemIcon>
+              <ListItemText 
+                primary={item.label} 
+                primaryTypographyProps={{ fontSize: '0.95rem', fontWeight: activeTab === item.id ? 700 : 500 }} 
+              />
+              {activeTab === item.id && <ChevronRight size={16} />}
+            </ListItemButton>
+          </ListItem>
+        ))}
+      </List>
+
+      <Box sx={{ p: 2, borderTop: '1px solid rgba(255,255,255,0.1)' }}>
+        <Button
+          fullWidth
+          variant="text"
+          color="inherit"
+          startIcon={<LogOut size={18} />}
+          onClick={handleLogout}
+          sx={{ py: 1.5, borderRadius: 2, justifyContent: 'flex-start', px: 2 }}
+        >
+          Sign Out
+        </Button>
+      </Box>
+    </Box>
+  );
 
   return (
-    <div className="dashboard-container">
-      <div className="dashboard-card">
-        <div className="dashboard-header">
-          <div className="welcome-section">
-            <div className="user-avatar">
-              {getRoleIcon()}
-            </div>
-            <div>
-              <h1>Welcome, {user?.firstName}!</h1>
-              <p className="user-role">{getRoleName()}</p>
-            </div>
-          </div>
-          <button onClick={handleLogout} className="logout-button">
-            <FaSignOutAlt /> Logout
-          </button>
-        </div>
+    <Box sx={{ display: 'flex', bgcolor: 'background.default', minHeight: '100vh' }}>
+      {/* Navigation Drawer */}
+      <Box
+        component="nav"
+        sx={{ width: { md: DRAWER_WIDTH }, flexShrink: { md: 0 } }}
+      >
+        {/* Mobile Drawer */}
+        <Drawer
+          variant="temporary"
+          open={mobileOpen}
+          onClose={() => setMobileOpen(false)}
+          ModalProps={{ keepMounted: true }}
+          sx={{
+            display: { xs: 'block', md: 'none' },
+            '& .MuiDrawer-paper': { boxSizing: 'border-box', width: DRAWER_WIDTH, border: 'none' },
+          }}
+        >
+          {drawer}
+        </Drawer>
+        {/* Desktop Drawer */}
+        <Drawer
+          variant="permanent"
+          sx={{
+            display: { xs: 'none', md: 'block' },
+            '& .MuiDrawer-paper': { boxSizing: 'border-box', width: DRAWER_WIDTH, border: 'none' },
+          }}
+          open
+        >
+          {drawer}
+        </Drawer>
+      </Box>
 
-        <div className="dashboard-tabs">
-          <button className={`tab-btn ${activeTab === 'profile' ? 'active' : ''}`} onClick={() => setActiveTab('profile')}>
-            <FaUser /> Profile
-          </button>
-          {user?.role === 'farmer' && (
-            <button className={`tab-btn ${activeTab === 'history' ? 'active' : ''}`} onClick={() => setActiveTab('history')}>
-              <FaHistory /> Transaction Ledger
-            </button>
-          )}
-          {user?.role === 'user' && (
-            <>
-              <button className={`tab-btn ${activeTab === 'purchase' ? 'active' : ''}`} onClick={() => setActiveTab('purchase')}>
-                <FaFillDrip /> Purchase Milk
-              </button>
-              <button className={`tab-btn ${activeTab === 'my-purchases' ? 'active' : ''}`} onClick={() => setActiveTab('my-purchases')}>
-                <FaHistory /> My Purchases
-              </button>
-            </>
-          )}
-        </div>
+      {/* Main Content Area */}
+      <Box
+        component="main"
+        sx={{
+          flexGrow: 1,
+          width: { md: `calc(100% - ${DRAWER_WIDTH}px)` },
+          minHeight: '100vh',
+          display: 'flex',
+          flexDirection: 'column'
+        }}
+      >
+        <AppBar 
+          position="sticky" 
+          elevation={0}
+          sx={{ 
+            bgcolor: 'background.paper', 
+            color: 'text.primary',
+            borderBottom: '1px solid',
+            borderColor: 'divider'
+          }}
+        >
+          <Toolbar sx={{ justifyContent: 'space-between' }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <IconButton
+                color="inherit"
+                aria-label="open drawer"
+                edge="start"
+                onClick={() => setMobileOpen(!mobileOpen)}
+                sx={{ mr: 2, display: { md: 'none' } }}
+              >
+                <MenuIcon />
+              </IconButton>
+              <Typography variant="h6" sx={{ fontWeight: 800, color: 'primary.main' }}>
+                {menuItems.find(item => item.id === activeTab)?.label || 'Dashboard'}
+              </Typography>
+            </Box>
 
-        <div className="dashboard-content">
-          {activeTab === 'profile' && (
-            <div className="info-card">
-              <h2>User Information</h2>
-              <div className="info-grid">
-                <div className="info-item">
-                  <span className="info-label">Username:</span>
-                  <span className="info-value">{user?.username}</span>
-                </div>
-                <div className="info-item">
-                  <span className="info-label">Email:</span>
-                  <span className="info-value">{user?.email}</span>
-                </div>
-                <div className="info-item">
-                  <span className="info-label">Name:</span>
-                  <span className="info-value">{user?.firstName} {user?.lastName}</span>
-                </div>
-                <div className="info-item">
-                  <span className="info-label">Role:</span>
-                  <span className="info-value">{getRoleName()}</span>
-                </div>
-              </div>
-            </div>
-          )}
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+              <Box sx={{ textAlign: 'right', display: { xs: 'none', sm: 'block' } }}>
+                <Typography variant="subtitle2" sx={{ fontWeight: 700, lineHeight: 1 }}>
+                  {user?.firstName} {user?.lastName}
+                </Typography>
+                <Typography variant="caption" color="text.secondary">
+                  {user?.role === 'farmer' ? 'Verified Seller' : 'Milk Buyer'}
+                </Typography>
+              </Box>
+              <Avatar 
+                sx={{ 
+                  bgcolor: 'primary.main', 
+                  fontWeight: 700,
+                  boxShadow: '0 0 0 4px rgba(26, 93, 26, 0.1)' 
+                }}
+              >
+                {user?.firstName?.charAt(0)}
+              </Avatar>
+            </Box>
+          </Toolbar>
+        </AppBar>
 
-          {activeTab === 'history' && (
-            <div className="milk-history-section">
-              <div className="info-card">
-                <div className="section-header-with-search">
-                  <h2>Transaction Ledger</h2>
-                  <div className="search-box">
-                    <input
-                      type="text"
+        <Container maxWidth="xl" sx={{ py: 4, flexGrow: 1 }}>
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={activeTab}
+              initial={{ opacity: 0, scale: 0.98 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 1.02 }}
+              transition={{ duration: 0.3, ease: 'easeOut' }}
+            >
+              {activeTab === 'profile' && (
+                <Grid container spacing={3}>
+                  <Grid item xs={12} md={4}>
+                    <Card sx={{ borderRadius: 4, textAlign: 'center', p: 3, boxShadow: '0 4px 20px rgba(0,0,0,0.05)', border: '1px solid', borderColor: 'divider' }}>
+                      <Avatar 
+                        sx={{ width: 100, height: 100, mx: 'auto', mb: 2, bgcolor: 'secondary.main', fontSize: '2rem' }}
+                      >
+                        {user?.firstName?.charAt(0)}
+                      </Avatar>
+                      <Typography variant="h5" sx={{ fontWeight: 800 }}>{user?.firstName} {user?.lastName}</Typography>
+                      <Typography color="text.secondary" gutterBottom>@{user?.username}</Typography>
+                      <Chip 
+                        label={getRoleName()} 
+                        color="primary" 
+                        size="small" 
+                        sx={{ mt: 1, fontWeight: 700, textTransform: 'uppercase' }} 
+                      />
+                    </Card>
+                  </Grid>
+                  <Grid item xs={12} md={8}>
+                    <Paper sx={{ p: 4, borderRadius: 4, boxShadow: '0 4px 20px rgba(0,0,0,0.05)', border: '1px solid', borderColor: 'divider' }}>
+                      <Typography variant="h6" sx={{ fontWeight: 700, mb: 3 }}>Account Information</Typography>
+                      <Grid container spacing={3}>
+                        {[
+                          { label: 'Full Name', value: `${user?.firstName} ${user?.lastName}`, icon: <User size={20} /> },
+                          { label: 'Username', value: `@${user?.username}`, icon: <UserCheck size={20} /> },
+                          { label: 'Email Address', value: user?.email, icon: <Info size={20} /> },
+                          { label: 'Role', value: getRoleName(), icon: <Award size={20} /> },
+                        ].map((info, idx) => (
+                          <Grid item xs={12} sm={6} key={idx}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                              <Box sx={{ color: 'primary.main', display: 'flex' }}>{info.icon}</Box>
+                              <Box>
+                                <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>{info.label}</Typography>
+                                <Typography variant="body1" sx={{ fontWeight: 700 }}>{info.value}</Typography>
+                              </Box>
+                            </Box>
+                          </Grid>
+                        ))}
+                      </Grid>
+                    </Paper>
+                  </Grid>
+
+                  {workshops.length > 0 && (
+                    <Grid item xs={12}>
+                      <Box sx={{ mt: 4 }}>
+                        <Typography variant="h5" sx={{ fontWeight: 800, mb: 3, display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                          <Calendar color={theme.palette.secondary.main} /> Upcoming Events
+                        </Typography>
+                        <Grid container spacing={3}>
+                          {workshops.map(w => {
+                            const isBooked = w.bookedBy.some(b => b.userId === user?.id);
+                            const isFull = w.bookedBy.length >= w.totalSlots;
+                            return (
+                              <Grid item xs={12} md={6} lg={4} key={w._id}>
+                                <Card sx={{ borderRadius: 4, overflow: 'hidden', height: '100%', display: 'flex', flexDirection: 'column', boxShadow: '0 4px 20px rgba(0,0,0,0.05)', border: '1px solid', borderColor: 'divider' }}>
+                                  {w.image && (
+                                    <Box sx={{ height: 180, overflow: 'hidden' }}>
+                                      <img src={`http://localhost:5000${w.image}`} alt={w.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                    </Box>
+                                  )}
+                                  <CardContent sx={{ flexGrow: 1 }}>
+                                    <Typography variant="h6" sx={{ fontWeight: 800, mb: 1 }}>{w.title}</Typography>
+                                    <Typography variant="body2" color="text.secondary" sx={{ mb: 2, display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                                      {w.description}
+                                    </Typography>
+                                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, color: 'text.secondary' }}>
+                                        <Calendar size={16} /> <Typography variant="caption">{new Date(w.date).toLocaleDateString()}</Typography>
+                                      </Box>
+                                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, color: 'text.secondary' }}>
+                                        <MapPin size={16} /> <Typography variant="caption">{w.location}</Typography>
+                                      </Box>
+                                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, color: 'text.secondary' }}>
+                                        <Users size={16} /> <Typography variant="caption">{w.bookedBy.length}/{w.totalSlots} Slots</Typography>
+                                      </Box>
+                                    </Box>
+                                  </CardContent>
+                                  <Box sx={{ p: 2, pt: 0 }}>
+                                    <Button 
+                                      fullWidth 
+                                      variant={isBooked ? 'outlined' : 'contained'} 
+                                      color={isBooked ? 'success' : 'primary'}
+                                      disabled={isBooked || (isFull && !isBooked)}
+                                      onClick={() => handleBooking(w._id)}
+                                      sx={{ borderRadius: 2, fontWeight: 700 }}
+                                    >
+                                      {isBooked ? 'Booked' : isFull ? 'Full' : 'Book Now'}
+                                    </Button>
+                                  </Box>
+                                </Card>
+                              </Grid>
+                            );
+                          })}
+                        </Grid>
+                      </Box>
+                    </Grid>
+                  )}
+                </Grid>
+              )}
+
+              {/* Direct Sales Manager (Farmer) */}
+              {activeTab === 'direct-manage' && (
+                <Grid container spacing={3}>
+                  {/* Post Availability */}
+                  <Grid item xs={12} md={4}>
+                    <Paper sx={{ p: 4, borderRadius: 4, boxShadow: '0 4px 20px rgba(0,0,0,0.05)', border: '1px solid', borderColor: 'divider' }}>
+                      <Typography variant="h6" sx={{ fontWeight: 700, mb: 3, display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                        <Droplets size={22} color={theme.palette.primary.main} /> Post Availability
+                      </Typography>
+                      <Box component="form" onSubmit={handleFarmerAvailability}>
+                        <Grid container spacing={2}>
+                          <Grid item xs={12}>
+                            <TextField
+                              fullWidth
+                              label="Available Quantity (Liters)"
+                              type="number"
+                              inputProps={{ step: 0.5, min: 0 }}
+                              value={farmerAvailQty}
+                              onChange={(e) => setFarmerAvailQty(e.target.value)}
+                              required
+                              InputProps={{ endAdornment: <InputAdornment position="end">L</InputAdornment> }}
+                            />
+                          </Grid>
+                          <Grid item xs={12}>
+                            <TextField
+                              fullWidth
+                              label="Price per Liter (₹)"
+                              type="number"
+                              inputProps={{ step: 1, min: 1 }}
+                              value={farmerPrice}
+                              onChange={(e) => setFarmerPrice(e.target.value)}
+                              required
+                              InputProps={{ startAdornment: <InputAdornment position="start">₹</InputAdornment> }}
+                            />
+                          </Grid>
+                        </Grid>
+                        <Button
+                          fullWidth
+                          variant="contained"
+                          type="submit"
+                          size="large"
+                          sx={{ mt: 3, py: 1.5, borderRadius: 3, fontWeight: 800 }}
+                        >
+                          Update Availability
+                        </Button>
+                        {directSaleMessage.text && (
+                          <Typography
+                            variant="body2"
+                            color={directSaleMessage.type === 'error' ? 'error' : 'success.main'}
+                            sx={{ mt: 2, textAlign: 'center', fontWeight: 600 }}
+                          >
+                            {directSaleMessage.text}
+                          </Typography>
+                        )}
+                      </Box>
+                    </Paper>
+                  </Grid>
+
+                  {/* Incoming Requests */}
+                  <Grid item xs={12} md={8}>
+                    <Paper sx={{ p: 3, borderRadius: 4, boxShadow: '0 4px 20px rgba(0,0,0,0.05)', border: '1px solid', borderColor: 'divider' }}>
+                      <Typography variant="h6" sx={{ fontWeight: 700, mb: 3, display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                        <Users size={22} color={theme.palette.primary.main} /> Incoming Requests
+                      </Typography>
+                      {farmerDirectRequests.length === 0 ? (
+                        <Box sx={{ textAlign: 'center', py: 6 }}>
+                          <Typography color="text.secondary">No incoming requests from buyers yet.</Typography>
+                        </Box>
+                      ) : (
+                        <Box>
+                          {farmerDirectRequests.map((req) => (
+                            <Card key={req._id} variant="outlined" sx={{ mb: 2, borderRadius: 3 }}>
+                              <CardContent>
+                                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                  <Box>
+                                    <Typography sx={{ fontWeight: 700 }}>{req.userId?.name || 'Customer'}</Typography>
+                                    <Typography variant="body2" color="text.secondary">{req.userId?.phone || ''}</Typography>
+                                    <Box sx={{ mt: 1 }}>
+                                      <Chip label={`${req.quantity} L requested`} size="small" color="primary" sx={{ mr: 1, fontWeight: 700 }} />
+                                      <Chip label={`₹${req.pricePerLiter}/L`} size="small" color="success" sx={{ fontWeight: 700 }} />
+                                    </Box>
+                                  </Box>
+                                  <Box>
+                                    {req.status === 'pending' ? (
+                                      <Box sx={{ display: 'flex', gap: 1 }}>
+                                        <IconButton color="success" onClick={() => handleFarmerAction(req._id, 'approve')} sx={{ bgcolor: 'success.light', '&:hover': { bgcolor: 'success.main', color: 'white' } }}>
+                                          <CircleCheck size={20} />
+                                        </IconButton>
+                                        <IconButton color="error" onClick={() => handleFarmerAction(req._id, 'reject')} sx={{ bgcolor: 'error.light', '&:hover': { bgcolor: 'error.main', color: 'white' } }}>
+                                          <CircleX size={20} />
+                                        </IconButton>
+                                      </Box>
+                                    ) : (
+                                      <Chip
+                                        label={req.status}
+                                        color={req.status === 'approved' ? 'success' : 'error'}
+                                        sx={{ fontWeight: 700, textTransform: 'capitalize' }}
+                                      />
+                                    )}
+                                  </Box>
+                                </Box>
+                              </CardContent>
+                            </Card>
+                          ))}
+                        </Box>
+                      )}
+                    </Paper>
+                  </Grid>
+                </Grid>
+              )}
+
+              {/* Local Farmers Browser (Customer) */}
+              {activeTab === 'direct-buy' && (
+                <Grid container spacing={3}>
+                  {/* Available Farmers */}
+                  <Grid item xs={12} md={8}>
+                    <Paper sx={{ p: 3, borderRadius: 4, boxShadow: '0 4px 20px rgba(0,0,0,0.05)', border: '1px solid', borderColor: 'divider' }}>
+                      <Typography variant="h6" sx={{ fontWeight: 700, mb: 3, display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                        <Sprout size={22} color={theme.palette.primary.main} /> Local Farmers
+                      </Typography>
+                      {directAvailabilities.length === 0 ? (
+                        <Box sx={{ textAlign: 'center', py: 6 }}>
+                          <Typography color="text.secondary">No farmers are currently accepting direct sale requests.</Typography>
+                        </Box>
+                      ) : (
+                        <Grid container spacing={2}>
+                          {directAvailabilities.map((avail) => {
+                            const qty = getDirectBuyQty(avail._id);
+                            const setQty = (v) => setDirectBuyQty(avail._id, typeof v === 'function' ? v(qty) : v);
+                            return (
+                              <Grid item xs={12} lg={6} key={avail._id}>
+                                <Card variant="outlined" sx={{ borderRadius: 3, height: '100%' }}>
+                                  <CardContent>
+                                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 2 }}>
+                                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                                        <Avatar sx={{ bgcolor: 'primary.main', width: 56, height: 56, fontSize: '1.4rem' }}>
+                                          {avail.farmer?.firstName?.[0] || 'F'}
+                                        </Avatar>
+                                        <Box>
+                                          <Typography variant="h6" sx={{ fontWeight: 800, lineHeight: 1.2 }}>{avail.farmer?.firstName} {avail.farmer?.lastName}</Typography>
+                                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.3 }}>
+                                            <Star size={14} fill="#fbbf24" color="#fbbf24" />
+                                            <Typography variant="body2" sx={{ fontWeight: 700 }}>{avail.farmer?.avgRating?.toFixed(1) || 'New'}</Typography>
+                                          </Box>
+                                        </Box>
+                                      </Box>
+                                      <Box sx={{ textAlign: 'right' }}>
+                                        <Typography variant="h5" sx={{ fontWeight: 900, color: 'primary.main' }}>₹{avail.pricePerLiter}<Typography component="span" variant="caption">/L</Typography></Typography>
+                                        <Typography variant="caption" color="text.secondary">{avail.availableQuantity} L available</Typography>
+                                      </Box>
+                                    </Box>
+                                    <Divider sx={{ my: 2 }} />
+                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
+                                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                        <IconButton size="small" onClick={() => setQty(q => Math.max(1, q - 1))}><Minus size={14} /></IconButton>
+                                        <TextField
+                                          type="number"
+                                          size="small"
+                                          value={qty}
+                                          onChange={(e) => setQty(Math.max(1, Math.min(avail.availableQuantity, parseInt(e.target.value) || 1)))}
+                                          inputProps={{ min: 1, max: avail.availableQuantity, style: { textAlign: 'center', width: 50 } }}
+                                          sx={{ '& fieldset': { border: 'none' } }}
+                                        />
+                                        <IconButton size="small" onClick={() => setQty(q => Math.min(avail.availableQuantity, q + 1))}><Plus size={14} /></IconButton>
+                                      </Box>
+                                      <Box sx={{ display: 'flex', gap: 1, ml: 'auto' }}>
+                                        <Button
+                                          variant="outlined"
+                                          size="small"
+                                          onClick={() => avail.farmer?._id && fetchFarmerReviews(avail.farmer._id)}
+                                          sx={{ borderRadius: 2 }}
+                                          disabled={!avail.farmer?._id}
+                                        >
+                                          Reviews
+                                        </Button>
+                                        <Button
+                                          variant="contained"
+                                          size="small"
+                                          onClick={() => avail.farmer?._id && handleDirectPurchaseRequest(avail.farmer._id, qty, avail.pricePerLiter)}
+                                          sx={{ borderRadius: 2, fontWeight: 700 }}
+                                          disabled={!avail.farmer?._id}
+                                        >
+                                          Request (₹{(qty * avail.pricePerLiter).toFixed(0)})
+                                        </Button>
+                                      </Box>
+                                    </Box>
+                                  </CardContent>
+                                </Card>
+                              </Grid>
+                            );
+                          })}
+                        </Grid>
+                      )}
+                    </Paper>
+                  </Grid>
+
+                  {/* My Direct Requests */}
+                  <Grid item xs={12} md={4}>
+                    <Paper sx={{ p: 3, borderRadius: 4, boxShadow: '0 4px 20px rgba(0,0,0,0.05)', border: '1px solid', borderColor: 'divider' }}>
+                      <Typography variant="h6" sx={{ fontWeight: 700, mb: 3, display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                        <UserCheck size={22} color={theme.palette.primary.main} /> My Requests
+                      </Typography>
+                      {myDirectRequests.length === 0 ? (
+                        <Box sx={{ textAlign: 'center', py: 6 }}>
+                          <Typography color="text.secondary">You haven't made any direct purchase requests yet.</Typography>
+                        </Box>
+                      ) : (
+                        <Box>
+                          {myDirectRequests.map((req) => (
+                            <Card key={req._id} variant="outlined" sx={{ mb: 2, borderRadius: 3 }}>
+                              <CardContent sx={{ '&:last-child': { pb: 2 } }}>
+                                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                                  <Typography sx={{ fontWeight: 700 }}>{req.farmer?.firstName} {req.farmer?.lastName}</Typography>
+                                  <Chip
+                                    label={req.status}
+                                    size="small"
+                                    color={req.status === 'approved' ? 'success' : req.status === 'rejected' ? 'error' : 'warning'}
+                                    sx={{ fontWeight: 700, textTransform: 'capitalize' }}
+                                  />
+                                </Box>
+                                <Typography variant="body2" color="text.secondary">{req.quantity} L · ₹{req.pricePerLiter}/L</Typography>
+                                {req.status === 'approved' && !req.rating && (
+                                  <Button
+                                    size="small"
+                                    variant="outlined"
+                                    color="warning"
+                                    sx={{ mt: 1.5, borderRadius: 2, fontWeight: 700 }}
+                                    onClick={() => setFeedbackData({ id: req._id, rating: 5, feedback: '' })}
+                                    startIcon={<Star size={14} />}
+                                  >
+                                    Leave Review
+                                  </Button>
+                                )}
+                                {req.rating && (
+                                  <Box sx={{ mt: 1, display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                    {[1,2,3,4,5].map(s => (
+                                      <Star key={s} size={14} fill={s <= req.rating ? '#fbbf24' : 'none'} color="#fbbf24" />
+                                    ))}
+                                    <Typography variant="caption" color="text.secondary" sx={{ ml: 0.5 }}>Reviewed</Typography>
+                                  </Box>
+                                )}
+                              </CardContent>
+                            </Card>
+                          ))}
+                        </Box>
+                      )}
+                      {directSaleMessage.text && (
+                        <Typography
+                          variant="body2"
+                          color={directSaleMessage.type === 'error' ? 'error' : 'success.main'}
+                          sx={{ mt: 2, textAlign: 'center', fontWeight: 600 }}
+                        >
+                          {directSaleMessage.text}
+                        </Typography>
+                      )}
+                    </Paper>
+                  </Grid>
+                </Grid>
+              )}
+
+              {/* Transaction Ledger (Farmer) */}
+              {activeTab === 'history' && (
+                <Paper sx={{ p: 3, borderRadius: 4, boxShadow: '0 4px 20px rgba(0,0,0,0.05)', border: '1px solid', borderColor: 'divider' }}>
+                  <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
+                    <Typography variant="h6" sx={{ fontWeight: 700 }}>Transaction Ledger</Typography>
+                    <TextField 
+                      size="small"
                       placeholder="Search transactions..."
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
+                      InputProps={{
+                        startAdornment: <InputAdornment position="start"><Search size={18} /></InputAdornment>,
+                      }}
+                      sx={{ width: { xs: '100%', sm: 300 } }}
                     />
-                  </div>
-                </div>
-                {loadingRecords ? (
-                  <p>Loading records...</p>
-                ) : (
-                  <div className="table-container">
-                    <table>
-                      <thead>
-                        <tr>
-                          <th>Date</th>
-                          <th>Qty (L)</th>
-                          <th>Price/L</th>
-                          <th>Total</th>
-                          <th>Status</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {filteredRecords.map(record => (
-                          <tr key={record._id}>
-                            <td>{new Date(record.date).toLocaleDateString()}</td>
-                            <td>{record.quantity}</td>
-                            <td>₹{record.pricePerLiter.toFixed(2)}</td>
-                            <td>₹{record.totalAmount.toFixed(2)}</td>
-                            <td>
-                              <span className={`status-badge ${record.status}`}>
-                                {record.status}
-                              </span>
-                            </td>
-                          </tr>
+                  </Box>
+                  <Box sx={{ overflowX: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                      <TableHead sx={{ bgcolor: 'rgba(26, 93, 26, 0.05)' }}>
+                        <TableRow>
+                          {['Date & Time', 'Qty (L)', 'Price/L', 'Total', 'Status'].map((head) => (
+                            <TableCell key={head} sx={{ fontWeight: 700, color: 'text.secondary', border: 'none' }}>{head}</TableCell>
+                          ))}
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {filteredRecords.map((record) => (
+                          <TableRow key={record._id} hover sx={{ '&:last-child td, &:last-child th': { border: 0 } }}>
+                            <TableCell>{formatDateTime(record.date)}</TableCell>
+                            <TableCell sx={{ fontWeight: 700 }}>{record.quantity} L</TableCell>
+                            <TableCell>₹{record.pricePerLiter.toFixed(2)}</TableCell>
+                            <TableCell sx={{ color: 'primary.main', fontWeight: 800 }}>₹{record.totalAmount.toFixed(2)}</TableCell>
+                            <TableCell>
+                              <Chip 
+                                label={record.status} 
+                                size="small"
+                                color={record.status === 'paid' ? 'success' : 'warning'}
+                                sx={{ fontWeight: 700, textTransform: 'uppercase', fontSize: '0.65rem' }}
+                              />
+                            </TableCell>
+                          </TableRow>
                         ))}
-                      </tbody>
+                      </TableBody>
                     </table>
-                    {filteredRecords.length === 0 && <p className="no-records">No transactions matched your search.</p>}
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
+                    {filteredRecords.length === 0 && (
+                      <Box sx={{ textAlign: 'center', py: 8 }}>
+                        <Typography color="text.secondary">No transactions found matching your search.</Typography>
+                      </Box>
+                    )}
+                  </Box>
+                </Paper>
+              )}
 
-          {activeTab === 'purchase' && (
-            <div className="purchase-section">
-              <div className="info-card">
-                <h2>Purchase Pure Milk</h2>
-                <div className="availability-badge">
-                  {loadingAvailability ? 'Checking availability...' : (
-                    availability.available > 0 ? (
-                      <span className="available">Available Milk Today: {availability.available.toFixed(2)} L</span>
-                    ) : (
-                      <span className="unavailable">Sorry, no milk available for purchase today.</span>
-                    )
-                  )}
-                </div>
+               {/* Performance Analytics (Farmer) */}
+              {activeTab === 'analytics' && (
+                <Grid container spacing={3}>
+                  <Grid item xs={12} md={4}>
+                    <Card sx={{ borderRadius: 4, height: '100%', bgcolor: 'rgba(251, 191, 36, 0.05)', border: '1px solid rgba(251, 191, 36, 0.2)', boxShadow: '0 4px 20px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column' }}>
+                      <CardContent sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
+                          <Avatar sx={{ bgcolor: 'warning.main' }}><Star /></Avatar>
+                          <Typography variant="subtitle2" color="warning.main" sx={{ fontWeight: 700 }}>Farmer Rating</Typography>
+                        </Box>
+                        <Typography variant="h3" sx={{ fontWeight: 800 }}>{analyticsData.rating?.average || 0}</Typography>
+                        <Typography variant="body2" color="text.secondary">Based on {analyticsData.rating?.count || 0} reviews</Typography>
+                        <Box sx={{ mt: 2, display: 'flex' }}>
+                          {[1,2,3,4,5].map(s => (
+                            <Star key={s} size={18} fill={s <= Math.round(analyticsData.rating?.average || 0) ? '#fbbf24' : 'none'} color="#fbbf24" style={{ opacity: s <= Math.round(analyticsData.rating?.average || 0) ? 1 : 0.3 }} />
+                          ))}
+                        </Box>
+                      </CardContent>
+                    </Card>
+                  </Grid>
 
-                {availability.available > 0 && (
-                  <form onSubmit={handlePurchase} className="purchase-form">
-                    <div className="rate-info">
-                      <p>Rate: ₹{availability.rate}/L (Today's Avg)</p>
-                      <p>Delivery: ₹{deliveryType === 'Takeaway' ? '0' : availability.deliveryCharge}</p>
-                    </div>
-
-                    <div className="form-group-row">
-                      <div className="form-group">
-                        <label>Quantity (Liters)</label>
-                        <input
-                          type="number"
-                          step="0.1"
-                          value={purchaseQty}
-                          onChange={(e) => {
-                            const val = e.target.value;
-                            if (val > availability.available) {
-                              setPurchaseMessage({ type: 'error', text: `Maximum available is ${availability.available.toFixed(2)}L` });
-                            } else {
-                              setPurchaseMessage({ type: '', text: '' });
-                            }
-                            setPurchaseQty(val);
-                          }}
-                          placeholder="Enter quantity"
-                          max={availability.available}
-                          required
+                  <Grid item xs={12} md={4}>
+                    <Card sx={{ borderRadius: 4, height: '100%', bgcolor: 'rgba(16, 185, 129, 0.05)', border: '1px solid rgba(16, 185, 129, 0.2)', boxShadow: '0 4px 20px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column' }}>
+                      <CardContent sx={{ textAlign: 'center', flexGrow: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                        <Box><Typography variant="h4" sx={{ mb: 1 }}>{analyticsData.benchmark.isAboveAverage ? '👑' : '⭐'}</Typography></Box>
+                        <Typography variant="h6" sx={{ fontWeight: 800 }}>Quality Benchmark</Typography>
+                        <Chip 
+                          label={analyticsData.benchmark.isAboveAverage ? 'Above Society Average' : 'Society Standard'} 
+                          color={analyticsData.benchmark.isAboveAverage ? 'success' : 'info'}
+                          sx={{ mt: 1, fontWeight: 700 }}
                         />
-                      </div>
+                        <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
+                          Your milk quality consistently meets or exceeds the society standards.
+                        </Typography>
+                      </CardContent>
+                    </Card>
+                  </Grid>
 
-                      <div className="form-group">
-                        <label>Order Type</label>
-                        <select
-                          value={deliveryType}
-                          onChange={(e) => setDeliveryType(e.target.value)}
+                  <Grid item xs={12} md={4}>
+                    <Card sx={{ borderRadius: 4, height: '100%', bgcolor: 'rgba(245, 158, 11, 0.05)', border: '1px solid rgba(245, 158, 11, 0.2)', boxShadow: '0 4px 20px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column' }}>
+                      <CardContent sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
+                          <Avatar sx={{ bgcolor: 'secondary.main' }}><TrendingUp /></Avatar>
+                          <Typography variant="subtitle2" color="secondary.main" sx={{ fontWeight: 700 }}>Recent Delivery</Typography>
+                        </Box>
+                        <Typography variant="h3" sx={{ fontWeight: 800 }}>
+                          {analyticsData.income.length > 0 ? analyticsData.income[analyticsData.income.length - 1].quantity.toFixed(1) : 0} L
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary">
+                          Last delivery recorded in {analyticsData.income.length > 0 ? analyticsData.income[analyticsData.income.length - 1]._id : 'this period'}
+                        </Typography>
+                      </CardContent>
+                    </Card>
+                  </Grid>
+
+                  <Grid item xs={12}>
+                    <Paper sx={{ p: 4, borderRadius: 4, boxShadow: '0 4px 20px rgba(0,0,0,0.05)', border: '1px solid', borderColor: 'divider', minHeight: 450, display: 'flex', flexDirection: 'column' }}>
+                      <Box sx={{ mb: 4, display: 'flex', justifyContent: 'center', alignItems: 'center', position: 'relative' }}>
+                        <Typography variant="h5" sx={{ fontWeight: 800, textAlign: 'center' }}>Monthly Income Tracker</Typography>
+                        <Box sx={{ position: 'absolute', right: 0 }}>
+                          <BarChart3 size={28} color={theme.palette.secondary.main} />
+                        </Box>
+                      </Box>
+                      <Box sx={{ width: '100%', flexGrow: 1, minHeight: 350 }}>
+                        <ResponsiveContainer>
+                          <BarChart data={analyticsData.income} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                            <XAxis 
+                              dataKey="_id" 
+                              axisLine={false} 
+                              tickLine={false}
+                              tick={{ fontSize: 12, fill: '#64748b' }}
+                              tickFormatter={(str) => {
+                                try {
+                                  const date = new Date(str + '-01');
+                                  return date.toLocaleDateString(undefined, { month: 'short' });
+                                } catch (e) {
+                                  return str;
+                                }
+                              }}
+                            />
+                            <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#64748b' }} />
+                            <ChartTooltip 
+                              cursor={{ fill: 'rgba(0,0,0,0.02)' }}
+                              contentStyle={{ borderRadius: 12, border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
+                            />
+                            <Bar 
+                              dataKey="earnings" 
+                              fill={theme.palette.primary.main} 
+                              radius={[6, 6, 0, 0]}
+                              barSize={isMobile ? 25 : 45}
+                            />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </Box>
+                    </Paper>
+                  </Grid>
+                </Grid>
+              )}
+
+              {/* Cattle Feed Shop (Farmer) */}
+              {activeTab === 'feed' && (
+                <Grid container spacing={3}>
+                  <Grid item xs={12} lg={8}>
+                    <Paper sx={{ p: 3, borderRadius: 4, mb: 3, boxShadow: '0 4px 20px rgba(0,0,0,0.05)', border: '1px solid', borderColor: 'divider' }}>
+                      <Box sx={{ display: 'flex', overflowX: 'auto', gap: 1, pb: 1 }}>
+                        {['All', 'Green Fodder', 'Dry Fodder', 'Concentrate Feed', 'Cattle Supplements'].map(cat => (
+                          <Chip 
+                            key={cat} 
+                            label={cat}
+                            onClick={() => setSupplementCategory(cat)}
+                            color={supplementCategory === cat ? 'primary' : 'default'}
+                            variant={supplementCategory === cat ? 'contained' : 'outlined'}
+                            sx={{ fontWeight: 600, flexShrink: 0 }}
+                          />
+                        ))}
+                      </Box>
+                    </Paper>
+
+                    <Grid container spacing={2}>
+                      {supplements
+                        .filter(s => supplementCategory === 'All' || s.category === supplementCategory)
+                        .map(item => (
+                          <Grid item xs={12} sm={6} key={item._id}>
+                            <Card sx={{ borderRadius: 4, overflow: 'hidden', height: '100%', display: 'flex', flexDirection: 'column', position: 'relative', boxShadow: '0 4px 20px rgba(0,0,0,0.05)', border: '1px solid', borderColor: 'divider' }}>
+                              {!item.inStock && (
+                                <Box sx={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, bgcolor: 'rgba(255,255,255,0.7)', zIndex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                  <Chip label="Out of Stock" color="error" sx={{ fontWeight: 800 }} />
+                                </Box>
+                              )}
+                              <Box sx={{ height: 200, bgcolor: 'rgba(0,0,0,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                {item.image ? (
+                                  <img src={`http://localhost:5000${item.image}`} alt={item.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                ) : (
+                                  <Package size={48} color="#cbd5e1" />
+                                )}
+                              </Box>
+                              <CardContent sx={{ flexGrow: 1 }}>
+                                <Typography variant="caption" color="primary" sx={{ fontWeight: 700, textTransform: 'uppercase' }}>{item.category}</Typography>
+                                <Typography variant="h6" sx={{ fontWeight: 800, mt: 0.5 }}>{item.name}</Typography>
+                                <Typography variant="body2" color="text.secondary" sx={{ mt: 1, mb: 2, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                                  {item.description}
+                                </Typography>
+                                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                  <Typography variant="h6" sx={{ fontWeight: 800 }}>₹{item.pricePerUnit} <Typography component="span" variant="caption">/{item.unit}</Typography></Typography>
+                                  <Button 
+                                    size="small" 
+                                    variant="outlined" 
+                                    onClick={() => addToCart(item._id)}
+                                    disabled={!item.inStock}
+                                    sx={{ borderRadius: 2, fontWeight: 700 }}
+                                  >
+                                    {cart[item._id] ? `Added (${cart[item._id]})` : 'Add to Cart'}
+                                  </Button>
+                                </Box>
+                              </CardContent>
+                            </Card>
+                          </Grid>
+                        ))}
+                    </Grid>
+                  </Grid>
+
+                  <Grid item xs={12} lg={4}>
+                    <Paper sx={{ p: 4, borderRadius: 4, position: 'sticky', top: 100, boxShadow: '0 4px 20px rgba(0,0,0,0.05)', border: '1px solid', borderColor: 'divider' }}>
+                      <Typography variant="h6" sx={{ fontWeight: 700, mb: 3, display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                        <ShoppingBag size={22} color={theme.palette.secondary.main} /> Your Cart
+                      </Typography>
+                      
+                      {Object.keys(cart).length === 0 ? (
+                        <Box sx={{ textAlign: 'center', py: 4 }}>
+                          <Typography color="text.secondary">Your cart is empty</Typography>
+                        </Box>
+                      ) : (
+                        <Box>
+                          <List sx={{ mb: 3 }}>
+                            {Object.entries(cart).map(([id, qty]) => {
+                              const item = supplements.find(s => s._id === id);
+                              return (
+                                <ListItem key={id} disablePadding sx={{ py: 1, borderBottom: '1px solid #f1f5f9' }}>
+                                  <ListItemText 
+                                    primary={item?.name} 
+                                    secondary={`₹${item?.pricePerUnit} x ${qty}`}
+                                    primaryTypographyProps={{ fontWeight: 700, fontSize: '0.9rem' }}
+                                  />
+                                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                    <IconButton size="small" onClick={() => removeFromCart(id)}><Minus size={14} /></IconButton>
+                                    <Typography variant="body2" sx={{ fontWeight: 700, minWidth: 20, textAlign: 'center' }}>{qty}</Typography>
+                                    <IconButton size="small" onClick={() => addToCart(id)}><Plus size={14} /></IconButton>
+                                  </Box>
+                                </ListItem>
+                              );
+                            })}
+                          </List>
+                          <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 3 }}>
+                            <Typography sx={{ fontWeight: 700 }}>Total Amount</Typography>
+                            <Typography sx={{ fontWeight: 800, color: 'primary.main' }}>
+                              ₹{Object.entries(cart).reduce((total, [id, qty]) => {
+                                const item = supplements.find(s => s._id === id);
+                                return total + (item?.pricePerUnit || 0) * qty;
+                              }, 0).toFixed(2)}
+                            </Typography>
+                          </Box>
+                          <Button 
+                            fullWidth 
+                            variant="contained" 
+                            size="large"
+                            onClick={handleSupplementOrder}
+                            sx={{ borderRadius: 3, fontWeight: 800, py: 1.5 }}
+                          >
+                            Place Order
+                          </Button>
+                        </Box>
+                      )}
+                      
+                      {orderMessage.text && (
+                        <Typography 
+                          variant="caption" 
+                          color={orderMessage.type === 'error' ? 'error' : 'success.main'}
+                          sx={{ display: 'block', mt: 2, textAlign: 'center', fontWeight: 600 }}
                         >
-                          <option value="COD">Home Delivery (COD)</option>
-                          <option value="Takeaway">Takeaway (Zero Delivery)</option>
-                        </select>
-                      </div>
-                    </div>
+                          {orderMessage.text}
+                        </Typography>
+                      )}
+                    </Paper>
+                  </Grid>
+                </Grid>
+              )}
 
-                    <div className="cost-summary">
-                      <p>Milk Cost: ₹{(purchaseQty ? (parseFloat(purchaseQty) * availability.rate) : 0).toFixed(2)}</p>
-                      <p>Delivery Charge: ₹{deliveryType === 'Takeaway' ? '0.00' : availability.deliveryCharge.toFixed(2)}</p>
-                      <div className="total-cost">
-                        Total Amount: ₹{totalCost}
-                      </div>
-                    </div>
-
-                    <div className="payment-method-info">
-                      <p><FaShoppingCart /> Payment Mode: <strong>{deliveryType === 'Takeaway' ? 'Pay at Society' : 'Cash on Delivery (COD)'}</strong></p>
-                    </div>
-
-                    <button type="submit" className="purchase-btn" disabled={!purchaseQty || purchaseQty > availability.available}>
-                      Place Order
-                    </button>
-                  </form>
-                )}
-
-                {purchaseMessage.text && (
-                  <div className={`message ${purchaseMessage.type}`}>
-                    {purchaseMessage.text}
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {activeTab === 'my-purchases' && (
-            <div className="my-purchases-section">
-              <div className="info-card">
-                <div className="section-header-with-search">
-                  <h2>My Purchase History</h2>
-                  <div className="search-box">
-                    <input
-                      type="text"
-                      placeholder="Search purchases..."
+              {/* Purchase History (Customer) */}
+              {activeTab === 'my-purchases' && (
+                <Paper sx={{ p: 3, borderRadius: 4, boxShadow: '0 4px 20px rgba(0,0,0,0.05)', border: '1px solid', borderColor: 'divider' }}>
+                   <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
+                    <Typography variant="h6" sx={{ fontWeight: 700 }}>Purchase History</Typography>
+                    <TextField 
+                      size="small"
+                      placeholder="Search history..."
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
+                      InputProps={{
+                        startAdornment: <InputAdornment position="start"><Search size={18} /></InputAdornment>,
+                      }}
+                      sx={{ width: { xs: '100%', sm: 300 } }}
                     />
-                  </div>
-                </div>
-                {loadingRecords ? (
-                  <p>Loading purchases...</p>
-                ) : (
-                  <div className="table-container">
-                    <table>
-                      <thead>
-                        <tr>
-                          <th>Date</th>
-                          <th>Qty (L)</th>
-                          <th>Rate/L</th>
-                          <th>Delivery</th>
-                          <th>Total</th>
-                          <th>Status</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {filteredPurchases.map(purchase => (
-                          <tr key={purchase._id}>
-                            <td>{new Date(purchase.date).toLocaleDateString()}</td>
-                            <td>{purchase.quantity}</td>
-                            <td>₹{purchase.rate}</td>
-                            <td>₹{purchase.deliveryCharge}</td>
-                            <td>₹{purchase.totalAmount.toFixed(2)}</td>
-                            <td>
-                              <span className={`status-badge ${purchase.status}`}>
-                                {purchase.status}
-                              </span>
-                            </td>
-                          </tr>
+                  </Box>
+                  <Box sx={{ overflowX: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                      <TableHead sx={{ bgcolor: 'rgba(26, 93, 26, 0.05)' }}>
+                        <TableRow>
+                          {['Date', 'Qty (L)', 'Rate', 'Delivery', 'Total', 'Status', 'Invoice'].map((head) => (
+                            <TableCell key={head} sx={{ fontWeight: 700, color: 'text.secondary', border: 'none' }}>{head}</TableCell>
+                          ))}
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {filteredPurchases.map((purchase) => (
+                          <TableRow key={purchase._id} hover sx={{ '&:last-child td, &:last-child th': { border: 0 } }}>
+                            <TableCell>{formatDateTime(purchase.date)}</TableCell>
+                            <TableCell sx={{ fontWeight: 700 }}>{purchase.quantity} L</TableCell>
+                            <TableCell>₹{purchase.rate}</TableCell>
+                            <TableCell>₹{purchase.deliveryCharge}</TableCell>
+                            <TableCell sx={{ color: 'primary.main', fontWeight: 800 }}>₹{purchase.totalAmount.toFixed(2)}</TableCell>
+                            <TableCell>
+                              <Chip 
+                                label={purchase.status} 
+                                size="small"
+                                color={purchase.status === 'delivered' ? 'success' : purchase.status === 'pending' ? 'warning' : 'default'}
+                                sx={{ fontWeight: 700, textTransform: 'uppercase', fontSize: '0.65rem' }}
+                              />
+                            </TableCell>
+                            <TableCell>
+                              {purchase.invoicePath ? (
+                                <IconButton 
+                                  size="small" 
+                                  color="primary" 
+                                  component="a" 
+                                  href={`http://localhost:5000${purchase.invoicePath}`} 
+                                  target="_blank"
+                                >
+                                  <DownloadCloud size={18} />
+                                </IconButton>
+                              ) : '-'}
+                            </TableCell>
+                          </TableRow>
                         ))}
-                      </tbody>
+                      </TableBody>
                     </table>
-                    {filteredPurchases.length === 0 && <p className="no-records">No purchase history found.</p>}
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
+                    {filteredPurchases.length === 0 && (
+                      <Box sx={{ textAlign: 'center', py: 8 }}>
+                        <Typography color="text.secondary">No purchase history found.</Typography>
+                      </Box>
+                    )}
+                  </Box>
+                </Paper>
+              )}
 
-          <div className="society-info">
-            <h3>Dairy Society Management System</h3>
-            <p>Areeparambu, Cherthala</p>
-          </div>
-        </div>
-      </div>
-    </div>
+              {/* Society Milk (Customer Purchase) */}
+              {activeTab === 'purchase' && (
+                <Grid container spacing={3} justifyContent="center">
+                  <Grid item xs={12} lg={10}>
+                    <Grid container spacing={3}>
+                      <Grid item xs={12} md={7}>
+                        <Paper sx={{ p: 4, borderRadius: 4, boxShadow: '0 4px 20px rgba(0,0,0,0.05)', border: '1px solid', borderColor: 'divider', height: '100%' }}>
+                          <Typography variant="h6" sx={{ fontWeight: 700, mb: 3, display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                            <ShoppingCart size={22} color={theme.palette.primary.main} /> Buy Fresh Milk
+                          </Typography>
+                          
+                          {availability.available > 0 ? (
+                            <Box component="form" onSubmit={handlePurchase}>
+                              <Grid container spacing={2}>
+                                <Grid item xs={12} sm={6}>
+                                  <TextField
+                                    fullWidth
+                                    label="Quantity (Liters)"
+                                    type="number"
+                                    inputProps={{ step: 0.1, max: availability.available }}
+                                    value={purchaseQty}
+                                    onChange={(e) => {
+                                      const val = e.target.value;
+                                      if (val > availability.available) {
+                                        setPurchaseMessage({ type: 'error', text: `Only ${availability.available.toFixed(1)}L available` });
+                                      } else {
+                                        setPurchaseMessage({ type: '', text: '' });
+                                      }
+                                      setPurchaseQty(val);
+                                    }}
+                                    required
+                                    helperText={`Available: ${availability.available.toFixed(1)} L`}
+                                  />
+                                </Grid>
+                                <Grid item xs={12} sm={6}>
+                                  <TextField
+                                    fullWidth
+                                    select
+                                    label="Order Type"
+                                    value={deliveryType}
+                                    onChange={(e) => setDeliveryType(e.target.value)}
+                                    SelectProps={{ native: true }}
+                                  >
+                                    <option value="COD">Home Delivery (COD)</option>
+                                    <option value="Takeaway">Takeaway (Zero Delivery)</option>
+                                  </TextField>
+                                </Grid>
+                                {deliveryType === 'COD' && (
+                                  <Grid item xs={12}>
+                                    <TextField
+                                      fullWidth
+                                      label="Delivery Distance (km)"
+                                      type="number"
+                                      inputProps={{ step: 0.1 }}
+                                      value={distance}
+                                      onChange={(e) => setDistance(e.target.value)}
+                                      placeholder="e.g. 2.5"
+                                      required
+                                      InputProps={{
+                                        endAdornment: <InputAdornment position="end">km</InputAdornment>,
+                                      }}
+                                    />
+                                  </Grid>
+                                )}
+                              </Grid>
+
+                              <Box sx={{ mt: 4, p: 3, bgcolor: 'rgba(26, 93, 26, 0.03)', borderRadius: 3 }}>
+                                <Typography variant="subtitle2" color="text.secondary" gutterBottom>Price Breakdown</Typography>
+                                <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                                  <Typography variant="body2">Milk Cost ({purchaseQty || 0}L × ₹{availability.rate})</Typography>
+                                  <Typography variant="body2" sx={{ fontWeight: 700 }}>₹{(purchaseQty ? parseFloat(purchaseQty) * availability.rate : 0).toFixed(2)}</Typography>
+                                </Box>
+                                <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
+                                  <Typography variant="body2">Delivery Charge</Typography>
+                                  <Typography variant="body2" sx={{ fontWeight: 700 }}>₹{deliveryType === 'Takeaway' ? '0.00' : (distance ? (parseFloat(distance) * 10).toFixed(2) : '10.00')}</Typography>
+                                </Box>
+                                <Divider sx={{ mb: 2 }} />
+                                <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                                  <Typography variant="h6" sx={{ fontWeight: 800 }}>Total Amount</Typography>
+                                  <Typography variant="h6" sx={{ fontWeight: 800, color: 'primary.main' }}>
+                                    ₹{(
+                                      (purchaseQty ? parseFloat(purchaseQty) * availability.rate : 0) +
+                                      (deliveryType === 'Takeaway' ? 0 : (distance ? parseFloat(distance) * 10 : 10))
+                                    ).toFixed(2)}
+                                  </Typography>
+                                </Box>
+                              </Box>
+
+                              <Button
+                                fullWidth
+                                size="large"
+                                variant="contained"
+                                type="submit"
+                                disabled={!purchaseQty || purchaseQty > availability.available}
+                                sx={{ mt: 3, py: 1.5, borderRadius: 3, fontWeight: 800 }}
+                              >
+                                Place Order
+                              </Button>
+
+                              {purchaseMessage.text && (
+                                <Fade in>
+                                  <Typography 
+                                    variant="body2" 
+                                    color={purchaseMessage.type === 'error' ? 'error' : 'success.main'} 
+                                    sx={{ mt: 2, textAlign: 'center', fontWeight: 600 }}
+                                  >
+                                    {purchaseMessage.text}
+                                  </Typography>
+                                </Fade>
+                              )}
+                            </Box>
+                          ) : (
+                            <Box sx={{ textAlign: 'center', py: 4 }}>
+                              <Typography variant="h6" color="text.secondary" gutterBottom>Out of Stock</Typography>
+                              <Typography variant="body2" color="text.secondary">We are sorry, but all milk for today has been sold out.</Typography>
+                            </Box>
+                          )}
+                        </Paper>
+                      </Grid>
+                      <Grid item xs={12} md={5}>
+                        <Card sx={{ borderRadius: 4, bgcolor: 'primary.main', color: 'white', p: 3, height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center', boxShadow: '0 4px 20px rgba(0,0,0,0.1)' }}>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3 }}>
+                            <Avatar sx={{ bgcolor: 'rgba(255,255,255,0.2)' }}><Info /></Avatar>
+                            <Box>
+                              <Typography variant="h6" sx={{ fontWeight: 800 }}>Society Standard</Typography>
+                              <Typography variant="caption" sx={{ opacity: 0.8 }}>Quality Assures Freshness</Typography>
+                            </Box>
+                          </Box>
+                          <Typography variant="body2" sx={{ opacity: 0.9, lineHeight: 1.7, mb: 3 }}>
+                            Our society milk is collected from local dairy farmers and undergoes rigorous quality testing. We ensure the best price for both farmers and consumers.
+                          </Typography>
+                          <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+                            <Chip label="Tested for Fat & SNF" sx={{ bgcolor: 'rgba(255,255,255,0.15)', color: 'white', fontWeight: 600 }} />
+                            <Chip label="Zero Adulteration" sx={{ bgcolor: 'rgba(255,255,255,0.15)', color: 'white', fontWeight: 600 }} />
+                            <Chip label="Farm Fresh" sx={{ bgcolor: 'rgba(255,255,255,0.15)', color: 'white', fontWeight: 600 }} />
+                          </Box>
+                        </Card>
+                      </Grid>
+                    </Grid>
+                  </Grid>
+                </Grid>
+              )}
+            </motion.div>
+          </AnimatePresence>
+        </Container>
+      </Box>
+
+      {/* Feedback Dialog */}
+      <Dialog open={!!feedbackData.id} onClose={() => setFeedbackData({ id: null, rating: 5, feedback: '' })} maxWidth="sm" fullWidth PaperProps={{ sx: { borderRadius: 4, p: 1 } }}>
+        <DialogTitle sx={{ fontWeight: 800, display: 'flex', alignItems: 'center', gap: 1.5 }}>
+          <Star size={22} color="#fbbf24" /> Share Your Experience
+        </DialogTitle>
+        <DialogContent>
+          <Box component="form" onSubmit={submitFeedback} id="feedback-form">
+            <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1, mt: 1 }}>Your Rating</Typography>
+            <Box sx={{ display: 'flex', gap: 0.5, mb: 3 }}>
+              {[1,2,3,4,5].map(s => (
+                <IconButton key={s} onClick={() => setFeedbackData(prev => ({ ...prev, rating: s }))} sx={{ p: 0.5 }}>
+                  <Star size={32} fill={s <= feedbackData.rating ? '#fbbf24' : 'none'} color="#fbbf24" />
+                </IconButton>
+              ))}
+            </Box>
+            <TextField
+              fullWidth
+              multiline
+              rows={3}
+              label="Your Review (Optional)"
+              value={feedbackData.feedback}
+              onChange={(e) => setFeedbackData(prev => ({ ...prev, feedback: e.target.value }))}
+              placeholder="Tell us about your experience with this farmer..."
+              sx={{ mb: 2 }}
+            />
+          </Box>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 3, gap: 1 }}>
+          <Button onClick={() => setFeedbackData({ id: null, rating: 5, feedback: '' })} sx={{ borderRadius: 2 }}>Cancel</Button>
+          <Button form="feedback-form" type="submit" variant="contained" sx={{ borderRadius: 2, fontWeight: 800, px: 4 }}>Submit Review</Button>
+        </DialogActions>
+      </Dialog>
+    </Box>
   );
 };
 

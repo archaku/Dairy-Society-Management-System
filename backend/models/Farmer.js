@@ -47,6 +47,22 @@ const farmerSchema = new mongoose.Schema({
     unique: true,
     trim: true
   },
+  avgRating: {
+    type: Number,
+    default: 0
+  },
+  totalReviews: {
+    type: Number,
+    default: 0
+  },
+  avgQualityScore: {
+    type: Number,
+    default: 0
+  },
+  totalMilkRecords: {
+    type: Number,
+    default: 0
+  },
   isActive: {
     type: Boolean,
     default: true

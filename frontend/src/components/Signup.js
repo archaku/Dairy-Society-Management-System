@@ -14,12 +14,17 @@ const Signup = () => {
     lastName: '',
     phone: '',
     address: '',
+    address: '',
     aadhar: '',
-    role: 'user'
+    role: 'user',
+    otp: ''
   });
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
-  const { signup, isAuthenticated } = useAuth();
+  const [otpSent, setOtpSent] = useState(false);
+  const [otpLoading, setOtpLoading] = useState(false);
+  const { signup, sendOtp, isAuthenticated } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -34,6 +39,27 @@ const Signup = () => {
       [e.target.name]: e.target.value
     });
     setError('');
+    setSuccess('');
+  };
+
+  const handleSendOtp = async () => {
+    if (!formData.email) {
+      setError('Please enter your email first');
+      return;
+    }
+
+    setOtpLoading(true);
+    setError('');
+    setSuccess('');
+
+    const result = await sendOtp(formData.email);
+    setOtpSent(true); // Show field regardless so user can enter code if they see it in console/email
+    if (result.success) {
+      setSuccess(result.message);
+    } else {
+      setError(result.message);
+    }
+    setOtpLoading(false);
   };
 
   const handleSubmit = async (e) => {
@@ -45,6 +71,12 @@ const Signup = () => {
     if (!formData.username || !formData.email || !formData.password ||
       !formData.firstName || !formData.lastName || !formData.phone || !formData.address) {
       setError('Please fill in all required fields including address');
+      setLoading(false);
+      return;
+    }
+
+    if (!formData.otp) {
+      setError('Please enter the OTP sent to your email');
       setLoading(false);
       return;
     }
@@ -76,6 +108,7 @@ const Signup = () => {
       phone: formData.phone,
       address: formData.address,
       role: formData.role,
+      otp: formData.otp,
       ...(formData.role === 'farmer' && { aadhar: formData.aadhar })
     };
 
@@ -107,6 +140,7 @@ const Signup = () => {
 
         <form onSubmit={handleSubmit} className="signup-form">
           {error && <div className="error-message">{error}</div>}
+          {success && <div className="success-message">{success}</div>}
 
           <div className="role-selector">
             <label>
@@ -179,21 +213,51 @@ const Signup = () => {
             />
           </div>
 
-          <div className="form-group">
+          <div className="form-group email-group">
             <label htmlFor="email">
               <FaEnvelope className="input-icon" />
               Email *
             </label>
-            <input
-              type="email"
-              id="email"
-              name="email"
-              value={formData.email}
-              onChange={handleChange}
-              placeholder="your.email@example.com"
-              required
-            />
+            <div className="input-with-button">
+              <input
+                type="email"
+                id="email"
+                name="email"
+                value={formData.email}
+                onChange={handleChange}
+                placeholder="Enter your email"
+                required
+                disabled={otpSent && success}
+              />
+              <button
+                type="button"
+                className="send-otp-btn"
+                onClick={handleSendOtp}
+                disabled={otpLoading || !formData.email}
+              >
+                {otpLoading ? <FaSpinner className="spinner" /> : (otpSent ? 'Resend' : 'Send OTP')}
+              </button>
+            </div>
           </div>
+
+          {(otpSent || formData.otp) && (
+            <div className="form-group animate-fade-in">
+              <label htmlFor="otp">
+                <FaLock className="input-icon" />
+                Enter OTP *
+              </label>
+              <input
+                type="text"
+                id="otp"
+                name="otp"
+                value={formData.otp}
+                onChange={handleChange}
+                placeholder="6-digit code"
+                required
+                maxLength="6"
+              />
+            </div>
+          )}
 
           <div className="form-group">
             <label htmlFor="phone">

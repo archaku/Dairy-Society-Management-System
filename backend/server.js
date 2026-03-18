@@ -34,6 +34,16 @@ app.use('/api/auth', require('./routes/authRoutes'));
 app.use('/api/admin', require('./routes/adminRoutes'));
 app.use('/api/milk', require('./routes/milkRoutes'));
 app.use('/api/purchase', require('./routes/milkPurchaseRoutes'));
+app.use('/api/workshops', require('./routes/workshopRoutes'));
+app.use('/api/supplements', require('./routes/supplementRoutes'));
+app.use('/api/direct-milk', require('./routes/directMilkRoutes'));
+app.use('/api/society', require('./routes/societySalesRoutes'));
+app.use('/api/analytics', require('./routes/analyticsRoutes'));
+app.use('/api/payment', require('./routes/paymentRoutes'));
+
+// Serve static files from uploads directory
+const path = require('path');
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // Health check
 app.get('/api/health', (req, res) => {

@@ -19,6 +19,10 @@ const milkPurchaseSchema = new mongoose.Schema({
         type: Number,
         default: 10
     },
+    distance: {
+        type: Number,
+        default: 0
+    },
     deliveryType: {
         type: String,
         enum: ['COD', 'Takeaway'],
@@ -37,6 +41,17 @@ const milkPurchaseSchema = new mongoose.Schema({
         type: String,
         enum: ['pending', 'delivered', 'cancelled'],
         default: 'pending'
+    },
+    paymentStatus: {
+        type: String,
+        enum: ['pending', 'Completed', 'Failed'],
+        default: 'pending'
+    },
+    invoicePath: {
+        type: String
+    },
+    paymentId: {
+        type: String
     },
     date: {
         type: Date,

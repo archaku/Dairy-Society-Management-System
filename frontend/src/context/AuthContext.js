@@ -56,7 +56,7 @@ export const AuthProvider = ({ children }) => {
       return { success: true };
     } catch (error) {
       console.error('Login error:', error);
-      
+
       // Handle network errors
       if (!error.response) {
         return {
@@ -64,11 +64,11 @@ export const AuthProvider = ({ children }) => {
           message: 'Cannot connect to server. Please make sure the backend server is running on port 5000.'
         };
       }
-      
-      const errorMessage = error.response?.data?.message || 
-                          error.response?.data?.error || 
-                          error.message || 
-                          'Login failed. Please try again.';
+
+      const errorMessage = error.response?.data?.message ||
+        error.response?.data?.error ||
+        error.message ||
+        'Login failed. Please try again.';
       return {
         success: false,
         message: errorMessage
@@ -87,7 +87,7 @@ export const AuthProvider = ({ children }) => {
       return { success: true };
     } catch (error) {
       console.error('Signup error:', error);
-      
+
       // Handle network errors
       if (!error.response) {
         return {
@@ -95,11 +95,29 @@ export const AuthProvider = ({ children }) => {
           message: 'Cannot connect to server. Please make sure the backend server is running on port 5000.'
         };
       }
-      
-      const errorMessage = error.response?.data?.message || 
-                          error.response?.data?.error || 
-                          error.message || 
-                          'Registration failed. Please try again.';
+
+      const errorMessage = error.response?.data?.message ||
+        error.response?.data?.error ||
+        error.message ||
+        'Registration failed. Please try again.';
+      return {
+        success: false,
+        message: errorMessage
+      };
+    }
+  };
+
+  const sendOtp = async (email) => {
+    try {
+      const response = await axios.post('http://localhost:5000/api/auth/send-otp', { email });
+      return {
+        success: true,
+        message: response.data.message
+      };
+    } catch (error) {
+      console.error('Send OTP error:', error);
+      const errorMessage = error.response?.data?.message ||
+        'Failed to send OTP. Please try again.';
       return {
         success: false,
         message: errorMessage
@@ -121,6 +139,7 @@ export const AuthProvider = ({ children }) => {
     loading,
     login,
     signup,
+    sendOtp,
     logout
   };
 

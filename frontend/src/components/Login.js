@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { FaUser, FaLock, FaCheese, FaSpinner } from 'react-icons/fa';
+import { motion } from 'framer-motion';
 import './Login.css';
 
 const Login = () => {
@@ -57,19 +58,46 @@ const Login = () => {
 
   return (
     <div className="login-container">
-      <div className="login-card">
-        <div className="login-header">
-          <div className="logo">
+      <motion.div 
+        className="login-card"
+        initial={{ opacity: 0, scale: 0.9 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ duration: 0.5, ease: "easeOut" }}
+      >
+        <motion.div 
+          className="login-header"
+          initial={{ y: -20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ delay: 0.2, duration: 0.5 }}
+        >
+          <motion.div 
+            className="logo"
+            whileHover={{ rotate: 10, scale: 1.1 }}
+            whileTap={{ scale: 0.9 }}
+          >
             <FaCheese className="logo-icon" />
-          </div>
+          </motion.div>
           <h1>Dairy Society Management</h1>
           <p className="subtitle">Areeparambu, Cherthala</p>
-        </div>
+        </motion.div>
 
         <form onSubmit={handleSubmit} className="login-form">
-          {error && <div className="error-message">{error}</div>}
+          {error && (
+            <motion.div 
+              className="error-message"
+              initial={{ x: -10, opacity: 0 }}
+              animate={{ x: 0, opacity: 1 }}
+            >
+              {error}
+            </motion.div>
+          )}
 
-          <div className="form-group">
+          <motion.div 
+            className="form-group"
+            initial={{ x: -20, opacity: 0 }}
+            animate={{ x: 0, opacity: 1 }}
+            transition={{ delay: 0.3 }}
+          >
             <label htmlFor="username">
               <FaUser className="input-icon" />
               Username or Email
@@ -84,9 +112,14 @@ const Login = () => {
               required
               autoComplete="username"
             />
-          </div>
+          </motion.div>
 
-          <div className="form-group">
+          <motion.div 
+            className="form-group"
+            initial={{ x: -20, opacity: 0 }}
+            animate={{ x: 0, opacity: 1 }}
+            transition={{ delay: 0.4 }}
+          >
             <label htmlFor="password">
               <FaLock className="input-icon" />
               Password
@@ -101,9 +134,18 @@ const Login = () => {
               required
               autoComplete="current-password"
             />
-          </div>
+          </motion.div>
 
-          <button type="submit" className="login-button" disabled={loading}>
+          <motion.button 
+            type="submit" 
+            className="login-button" 
+            disabled={loading}
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            initial={{ y: 20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            transition={{ delay: 0.5 }}
+          >
             {loading ? (
               <>
                 <FaSpinner className="spinner" /> Logging in...
@@ -111,18 +153,23 @@ const Login = () => {
             ) : (
               'Login'
             )}
-          </button>
+          </motion.button>
 
-          <div className="login-footer">
+          <motion.div 
+            className="login-footer"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.6 }}
+          >
             <p>
               Don't have an account?{' '}
               <Link to="/signup" className="link">
                 Sign up here
               </Link>
             </p>
-          </div>
+          </motion.div>
         </form>
-      </div>
+      </motion.div>
     </div>
   );
 };

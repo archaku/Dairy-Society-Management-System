@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const MilkRecord = require('../models/MilkRecord');
 const Farmer = require('../models/Farmer');
+const SocietyInventory = require('../models/SocietyInventory');
 const jwt = require('jsonwebtoken');
 
 // Middleware to verify if user is a farmer
@@ -90,8 +91,31 @@ router.post('/record', verifyAdmin, async (req, res) => {
         });
 
         await newRecord.save();
-        console.log('Milk record saved successfully');
-        res.status(201).json({ success: true, record: newRecord });
+
+        // Update Farmer Quality Metrics
+        const farmer = await Farmer.findById(farmerId);
+        if (farmer) {
+            const newTotalRecords = (farmer.totalMilkRecords || 0) + 1;
+            const newAvgQuality = ((farmer.avgQualityScore || 0) * (farmer.totalMilkRecords || 0) + Q) / newTotalRecords;
+
+            farmer.avgQualityScore = newAvgQuality;
+            farmer.totalMilkRecords = newTotalRecords;
+            await farmer.save();
+        }
+
+        // Increment Society Inventory (Atomic)
+        console.log(`Updating Society Inventory: adding ${quantity}L`);
+        const updatedInventory = await SocietyInventory.findOneAndUpdate(
+            {},
+            {
+                $inc: { totalStock: parseFloat(quantity) },
+                $set: { lastUpdated: new Date() }
+            },
+            { upsert: true, new: true, setDefaultsOnInsert: true }
+        );
+
+        console.log('Milk record saved. New Society Stock:', updatedInventory.totalStock);
+        res.status(201).json({ success: true, record: newRecord, stock: updatedInventory.totalStock });
     } catch (error) {
         console.error('POST /api/milk Error:', error.message);
         res.status(500).json({ success: false, message: error.message });
@@ -124,7 +148,10 @@ router.get('/admin/all', verifyAdmin, async (req, res) => {
 // @desc    Update payment status
 router.put('/admin/pay/:id', verifyAdmin, async (req, res) => {
     try {
-        const record = await MilkRecord.findByIdAndUpdate(req.params.id, { status: 'paid' }, { new: true });
+        const record = await MilkRecord.findByIdAndUpdate(req.params.id, { 
+            status: 'paid',
+            paymentId: req.body.paymentId 
+        }, { new: true });
         res.json({ success: true, record });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });

@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const MilkPurchase = require('../models/MilkPurchase');
 const MilkRecord = require('../models/MilkRecord');
+const SocietyInventory = require('../models/SocietyInventory');
 const jwt = require('jsonwebtoken');
 
 // Middleware to verify user (regular user)
@@ -46,37 +47,21 @@ const verifyAdmin = async (req, res, next) => {
 // @desc    Get available milk for today and average price
 router.get('/available', async (req, res) => {
     try {
+        const inventory = await SocietyInventory.findOne();
+        const available = inventory ? inventory.totalStock : 0;
+
+        // Calculate average rate from today's collections
         const today = new Date();
         today.setHours(0, 0, 0, 0);
-        const tomorrow = new Date(today);
-        tomorrow.setDate(tomorrow.getDate() + 1);
-
-        // Sum up all milk collected today
-        const records = await MilkRecord.find({
-            date: { $gte: today, $lt: tomorrow }
-        });
-        const totalCollected = records.reduce((sum, rec) => sum + rec.quantity, 0);
-
-        // Calculate average rate for today
-        let avgRate = 50; // Default if no records
-        if (records.length > 0) {
-            const sumRates = records.reduce((sum, rec) => sum + rec.pricePerLiter, 0);
-            avgRate = parseFloat((sumRates / records.length).toFixed(2));
-        }
-
-        // Sum up all milk purchased today
-        const purchases = await MilkPurchase.find({
-            date: { $gte: today, $lt: tomorrow },
-            status: { $ne: 'cancelled' }
-        });
-        const totalPurchased = purchases.reduce((sum, pur) => sum + pur.quantity, 0);
-
-        const available = Math.max(0, totalCollected - totalPurchased);
+        const milkRecords = await MilkRecord.find({ createdAt: { $gte: today } });
+        const totalAmt = milkRecords.reduce((sum, rec) => sum + (rec.totalAmount || 0), 0);
+        const totalQty = milkRecords.reduce((sum, rec) => sum + (rec.quantity || 0), 0);
+        const avgRate = totalQty > 0 ? (totalAmt / totalQty) : 45;
 
         res.json({
             success: true,
             available,
-            rate: avgRate,
+            rate: Math.round(avgRate * 100) / 100,
             deliveryCharge: 10
         });
     } catch (error) {
@@ -88,45 +73,29 @@ router.get('/available', async (req, res) => {
 // @desc    Purchase milk
 router.post('/', verifyUser, async (req, res) => {
     try {
-        const { quantity, deliveryType } = req.body;
+        const { quantity, deliveryType, distance } = req.body;
         if (!quantity || quantity <= 0) {
             return res.status(400).json({ success: false, message: 'Invalid quantity' });
         }
 
+        // Calculate current average rate
         const today = new Date();
         today.setHours(0, 0, 0, 0);
-        const tomorrow = new Date(today);
-        tomorrow.setDate(tomorrow.getDate() + 1);
+        const milkRecords = await MilkRecord.find({ createdAt: { $gte: today } });
+        const totalAmt = milkRecords.reduce((sum, rec) => sum + (rec.totalAmount || 0), 0);
+        const totalQty = milkRecords.reduce((sum, rec) => sum + (rec.quantity || 0), 0);
+        const avgRate = totalQty > 0 ? (totalAmt / totalQty) : 45;
 
-        // Check availability
-        const records = await MilkRecord.find({
-            date: { $gte: today, $lt: tomorrow }
-        });
-        const totalCollected = records.reduce((sum, rec) => sum + rec.quantity, 0);
-
-        // Calculate average rate for today
-        let avgRate = 50;
-        if (records.length > 0) {
-            const sumRates = records.reduce((sum, rec) => sum + rec.pricePerLiter, 0);
-            avgRate = parseFloat((sumRates / records.length).toFixed(2));
-        }
-
-        const purchases = await MilkPurchase.find({
-            date: { $gte: today, $lt: tomorrow },
-            status: { $ne: 'cancelled' }
-        });
-        const totalPurchased = purchases.reduce((sum, pur) => sum + pur.quantity, 0);
-
-        const available = totalCollected - totalPurchased;
-
-        if (quantity > available) {
+        // Check availability from Society Inventory
+        const inventory = await SocietyInventory.findOne();
+        if (!inventory || inventory.totalStock < quantity) {
             return res.status(400).json({
                 success: false,
-                message: `Only ${available.toFixed(2)}L available. Please adjust your quantity.`
+                message: `Only ${(inventory?.totalStock || 0).toFixed(2)}L available in society. Please adjust your quantity.`
             });
         }
 
-        const deliveryCharge = deliveryType === 'Takeaway' ? 0 : 10;
+        const deliveryCharge = deliveryType === 'Takeaway' ? 0 : (distance ? (distance * 10) : 10);
         const totalAmount = (quantity * avgRate) + deliveryCharge;
 
         const newPurchase = new MilkPurchase({
@@ -134,11 +103,27 @@ router.post('/', verifyUser, async (req, res) => {
             quantity,
             rate: avgRate,
             deliveryCharge,
+            distance: distance || 0,
             deliveryType: deliveryType || 'COD',
-            totalAmount
+            totalAmount,
+            status: 'pending',
+            paymentStatus: req.body.paymentId ? 'Completed' : 'pending',
+            paymentId: req.body.paymentId
         });
 
         await newPurchase.save();
+
+        // Decrement Society Inventory (Atomic)
+        console.log(`Decreasing Society Inventory: subtracting ${quantity}L`);
+        await SocietyInventory.findOneAndUpdate(
+            {},
+            {
+                $inc: { totalStock: -parseFloat(quantity) },
+                $set: { lastUpdated: new Date() }
+            },
+            { upsert: true, new: true, setDefaultsOnInsert: true }
+        );
+
         res.status(201).json({ success: true, purchase: newPurchase });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
@@ -149,9 +134,13 @@ router.post('/', verifyUser, async (req, res) => {
 // @desc    Get all purchases for admin
 router.get('/admin/all', verifyAdmin, async (req, res) => {
     try {
-        const purchases = await MilkPurchase.find()
+        let purchases = await MilkPurchase.find()
             .populate('user', 'firstName lastName username phone')
             .sort({ date: -1 });
+
+        // Filter out orphans
+        purchases = purchases.filter(p => p.user !== null);
+
         res.json({ success: true, purchases });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
@@ -177,11 +166,28 @@ router.put('/admin/approve/:id', verifyAdmin, async (req, res) => {
 // @desc    Cancel a milk purchase
 router.put('/admin/cancel/:id', verifyAdmin, async (req, res) => {
     try {
-        const purchase = await MilkPurchase.findByIdAndUpdate(
-            req.params.id,
-            { status: 'cancelled' },
-            { new: true }
+        const purchase = await MilkPurchase.findById(req.params.id);
+        if (!purchase) return res.status(404).json({ success: false, message: 'Purchase not found' });
+
+        if (purchase.status === 'cancelled') {
+            return res.status(400).json({ success: false, message: 'Purchase is already cancelled' });
+        }
+
+        const oldStatus = purchase.status;
+        purchase.status = 'cancelled';
+        await purchase.save();
+
+        // Increment Society Inventory back
+        console.log(`Purchase cancelled. Restoring ${purchase.quantity}L to inventory.`);
+        await SocietyInventory.findOneAndUpdate(
+            {},
+            {
+                $inc: { totalStock: parseFloat(purchase.quantity) },
+                $set: { lastUpdated: new Date() }
+            },
+            { upsert: true, new: true, setDefaultsOnInsert: true }
         );
+
         res.json({ success: true, purchase });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
