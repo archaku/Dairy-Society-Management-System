@@ -99,6 +99,20 @@ const AdminDashboard = () => {
     stats: { totalFarmers: 0, societyAvgQuality: 0 }
   });
   const [sortConfig, setSortConfig] = useState({ key: 'date', direction: 'desc' });
+  const [analysisDateRange, setAnalysisDateRange] = useState({ start: '', end: '' });
+
+  const getFilteredAnalysisData = (data, dateKey = 'date') => {
+    return data.filter(item => {
+      const itemDate = new Date(item[dateKey] || item.createdAt);
+      if (analysisDateRange.start && itemDate < new Date(analysisDateRange.start)) return false;
+      if (analysisDateRange.end) {
+        const endDate = new Date(analysisDateRange.end);
+        endDate.setHours(23, 59, 59, 999);
+        if (itemDate > endDate) return false;
+      }
+      return true;
+    });
+  };
 
   const formatDateTime = (dateStr) => {
     if (!dateStr) return 'N/A';
@@ -432,12 +446,20 @@ const AdminDashboard = () => {
       setPricePreview(40 + (Q * 10));
 
       // Quality Impression Logic
-      let impression = "Standard";
+      let label = "Standard";
       let color = "#64748b";
+      let icon = <CheckCircle size={20} />;
       const fatVal = parseFloat(fat);
-      if (fatVal >= 4.3) { impression = "Very Good Quality"; color = "#10b981"; }
-      else if (fatVal >= 4.0) { impression = "Good Quality"; color = "#3b82f6"; }
-      setQualityIndicator({ text: impression, color, score: Q });
+      if (fatVal >= 4.3) { 
+        label = "Very Good"; 
+        color = "#10b981"; 
+        icon = <Star size={20} />;
+      } else if (fatVal >= 4.0) { 
+        label = "Good"; 
+        color = "#3b82f6"; 
+        icon = <Award size={20} />;
+      }
+      setQualityIndicator({ label, color, icon, score: Q });
     } else {
       setPricePreview(null);
       setQualityIndicator(null);
@@ -594,14 +616,23 @@ const AdminDashboard = () => {
 
       // Handle nested properties for farmers/users
       if (config.key === 'name') {
-        aVal = `${a.firstName} ${a.lastName}`.toLowerCase();
-        bVal = `${b.firstName} ${b.lastName}`.toLowerCase();
+        aVal = `${a.firstName || ''} ${a.lastName || ''}`.toLowerCase();
+        bVal = `${b.firstName || ''} ${b.lastName || ''}`.toLowerCase();
       } else if (config.key === 'farmer') {
-        aVal = `${a.farmer?.firstName} ${a.farmer?.lastName}`.toLowerCase();
-        bVal = `${b.farmer?.firstName} ${b.farmer?.lastName}`.toLowerCase();
+        aVal = `${a.farmer?.firstName || ''} ${a.farmer?.lastName || ''}`.toLowerCase();
+        bVal = `${b.farmer?.firstName || ''} ${b.farmer?.lastName || ''}`.toLowerCase();
       } else if (config.key === 'user') {
-        aVal = `${a.user?.firstName} ${a.user?.lastName}`.toLowerCase();
-        bVal = `${b.user?.firstName} ${b.user?.lastName}`.toLowerCase();
+        aVal = `${a.user?.firstName || ''} ${a.user?.lastName || ''}`.toLowerCase();
+        bVal = `${b.user?.firstName || ''} ${b.user?.lastName || ''}`.toLowerCase();
+      } else if (config.key === 'date' || config.key === 'createdAt') {
+        aVal = new Date(aVal || 0).getTime();
+        bVal = new Date(bVal || 0).getTime();
+      } else if (typeof aVal === 'string' && typeof bVal === 'string') {
+        aVal = aVal.toLowerCase();
+        bVal = bVal.toLowerCase();
+      } else if (!isNaN(aVal) && !isNaN(bVal)) {
+        aVal = parseFloat(aVal) || 0;
+        bVal = parseFloat(bVal) || 0;
       }
 
       if (aVal < bVal) return config.direction === 'asc' ? -1 : 1;
@@ -654,6 +685,7 @@ const AdminDashboard = () => {
     { id: 'supplements', label: 'Supplements', icon: <Sprout size={20} /> },
     { id: 'society', label: 'Society Stock', icon: <Building2 size={20} /> },
     { id: 'feed-orders', label: 'Feed Orders', icon: <Package size={20} /> },
+    { id: 'analysis', label: 'Record Analysis', icon: <BarChart3 size={20} /> },
   ];
 
   const drawer = (
@@ -976,53 +1008,76 @@ const AdminDashboard = () => {
                           </TextField>
                         </Grid>
 
-                        {/* Price Preview */}
-                        {pricePreview && (
-                          <Grid item xs={12}>
-                            <Card variant="outlined" sx={{ bgcolor: 'rgba(26, 93, 26, 0.02)', borderColor: 'primary.main', borderStyle: 'dashed', borderRadius: 4 }}>
-                              <CardContent sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', py: '20px !important' }}>
-                                <Box>
-                                  <Typography variant="caption" color="primary.main" sx={{ fontWeight: 700, textTransform: 'uppercase' }}>Price Estimation</Typography>
-                                  <Typography variant="h4" sx={{ fontWeight: 800 }}>₹{pricePreview.toFixed(2)}<Typography component="span" variant="subtitle1" sx={{ ml: 1, opacity: 0.7 }}>/ liter</Typography></Typography>
-                                  <Typography variant="body2" color="text.secondary">Total: Requesting ₹{(pricePreview * (milkFormData.quantity || 0)).toFixed(2)}</Typography>
-                                </Box>
-
-                                {qualityIndicator && (
-                                  <Box sx={{ textAlign: 'center', p: 2, bgcolor: `${qualityIndicator.color}15`, borderRadius: 4, border: '1px solid', borderColor: qualityIndicator.color }}>
-                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
-                                      {qualityIndicator.icon}
-                                      <Typography variant="h6" sx={{ color: qualityIndicator.color, fontWeight: 900 }}>{qualityIndicator.label}</Typography>
-                                    </Box>
-                                    <Typography variant="caption" sx={{ color: qualityIndicator.color, fontWeight: 700, textTransform: 'uppercase' }}>Quality Grade</Typography>
+                        {/* Price Preview and Submit Action */}
+                        {pricePreview ? (
+                          <>
+                            <Grid item xs={12} md={8}>
+                              <Card variant="outlined" sx={{ height: '100%', bgcolor: 'rgba(26, 93, 26, 0.02)', borderColor: 'primary.main', borderStyle: 'dashed', borderRadius: 4 }}>
+                                <CardContent sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', p: '24px !important', height: '100%', boxSizing: 'border-box' }}>
+                                  <Box>
+                                    <Typography variant="caption" color="primary.main" sx={{ fontWeight: 700, textTransform: 'uppercase' }}>Price Estimation</Typography>
+                                    <Typography variant="h4" sx={{ fontWeight: 800 }}>₹{pricePreview.toFixed(2)}<Typography component="span" variant="subtitle1" sx={{ ml: 1, opacity: 0.7 }}>/ liter</Typography></Typography>
+                                    <Typography variant="body2" color="text.secondary">Total: Requesting ₹{(pricePreview * (milkFormData.quantity || 0)).toFixed(2)}</Typography>
                                   </Box>
-                                )}
-                              </CardContent>
-                            </Card>
+
+                                  {qualityIndicator && (
+                                    <Box sx={{ textAlign: 'center', p: 1.5, px: 3, bgcolor: `${qualityIndicator.color}15`, borderRadius: 4, border: '1px solid', borderColor: qualityIndicator.color }}>
+                                      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1, mb: 0.5 }}>
+                                        {qualityIndicator.icon}
+                                        <Typography variant="h6" sx={{ color: qualityIndicator.color, fontWeight: 900, lineHeight: 1 }}>{qualityIndicator.label}</Typography>
+                                      </Box>
+                                      <Typography variant="caption" sx={{ color: qualityIndicator.color, fontWeight: 700, textTransform: 'uppercase' }}>Quality Grade</Typography>
+                                    </Box>
+                                  )}
+                                </CardContent>
+                              </Card>
+                            </Grid>
+                            
+                            <Grid item xs={12} md={4} sx={{ display: 'flex', alignItems: 'stretch' }}>
+                              <Button
+                                type="submit"
+                                variant="contained"
+                                fullWidth
+                                size="large"
+                                sx={{
+                                  borderRadius: 4,
+                                  fontSize: '1.2rem',
+                                  fontWeight: 900,
+                                  minHeight: '100px',
+                                  bgcolor: 'primary.main',
+                                  '&:hover': { bgcolor: 'primary.dark', transform: 'scale(1.02)' },
+                                  transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                                  textTransform: 'none',
+                                  boxShadow: '0 12px 30px rgba(26, 93, 26, 0.15)'
+                                }}
+                              >
+                                Record Collection
+                              </Button>
+                            </Grid>
+                          </>
+                        ) : (
+                          <Grid item xs={12} md={6} sx={{ mx: 'auto', mt: 4 }}>
+                            <Button
+                              type="submit"
+                              variant="contained"
+                              fullWidth
+                              size="large"
+                              sx={{
+                                height: 72,
+                                borderRadius: '50px',
+                                fontSize: '1.4rem',
+                                fontWeight: 900,
+                                bgcolor: 'primary.main',
+                                '&:hover': { bgcolor: 'primary.dark', transform: 'scale(1.01)' },
+                                transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                                textTransform: 'none',
+                                boxShadow: '0 12px 30px rgba(26, 93, 26, 0.15)'
+                              }}
+                            >
+                              Record Collection
+                            </Button>
                           </Grid>
                         )}
-
-                        {/* Row 5: Submit Button (Centered) */}
-                        <Grid item xs={12} md={6} sx={{ ml: '360px', mt: '60px' }}>
-                          <Button
-                            type="submit"
-                            variant="contained"
-                            fullWidth
-                            size="large"
-                            sx={{
-                              height: 72,
-                              borderRadius: '50px',
-                              fontSize: '1.4rem',
-                              fontWeight: 900,
-                              bgcolor: 'primary.main',
-                              '&:hover': { bgcolor: 'primary.dark', transform: 'scale(1.01)' },
-                              transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                              textTransform: 'none',
-                              boxShadow: '0 12px 30px rgba(26, 93, 26, 0.15)'
-                            }}
-                          >
-                            Record Collection
-                          </Button>
-                        </Grid>
                       </Grid>
                     </form>
                   </Paper>
@@ -1261,6 +1316,160 @@ const AdminDashboard = () => {
                       </Table>
                     </TableContainer>
                   </Paper>
+                </Box>
+              ) : activeTab === 'analysis' ? (
+                <Box>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4, flexWrap: 'wrap', gap: 2 }}>
+                    <Typography variant="h4" sx={{ fontWeight: 900, color: 'primary.dark' }}>Record Analysis</Typography>
+                    <Box sx={{ display: 'flex', gap: 2, bgcolor: 'white', p: 1.5, borderRadius: 3, boxShadow: '0 2px 10px rgba(0,0,0,0.05)' }}>
+                      <TextField
+                        type="date"
+                        label="Start Date"
+                        InputLabelProps={{ shrink: true }}
+                        size="small"
+                        value={analysisDateRange.start}
+                        onChange={(e) => setAnalysisDateRange({ ...analysisDateRange, start: e.target.value })}
+                      />
+                      <TextField
+                        type="date"
+                        label="End Date"
+                        InputLabelProps={{ shrink: true }}
+                        size="small"
+                        value={analysisDateRange.end}
+                        onChange={(e) => setAnalysisDateRange({ ...analysisDateRange, end: e.target.value })}
+                      />
+                      <Button variant="outlined" color="error" onClick={() => setAnalysisDateRange({ start: '', end: '' })}>Clear</Button>
+                    </Box>
+                  </Box>
+
+                  {/* Summary Cards */}
+                  <Grid container spacing={3} sx={{ mb: 4 }}>
+                    <Grid item xs={12} md={4}>
+                      <Card sx={{ bgcolor: 'info.light', color: 'info.contrastText', borderRadius: 4 }}>
+                        <CardContent>
+                          <Typography variant="h6" sx={{ opacity: 0.9 }}>Total Sales to Users</Typography>
+                          <Typography variant="h3" sx={{ fontWeight: 800 }}>
+                            {getFilteredAnalysisData(purchases.filter(p => p.status === 'delivered')).reduce((sum, p) => sum + (p.quantity || 0), 0).toFixed(1)} L
+                          </Typography>
+                          <Typography variant="body2" sx={{ opacity: 0.8 }}>(Customer Orders)</Typography>
+                        </CardContent>
+                      </Card>
+                    </Grid>
+                    <Grid item xs={12} md={4}>
+                      <Card sx={{ bgcolor: 'success.light', color: 'success.contrastText', borderRadius: 4 }}>
+                        <CardContent>
+                          <Typography variant="h6" sx={{ opacity: 0.9 }}>Total Milk Collected</Typography>
+                          <Typography variant="h3" sx={{ fontWeight: 800 }}>
+                            {getFilteredAnalysisData(milkRecords.filter(r => r.status && r.status !== 'rejected')).reduce((sum, r) => sum + (r.quantity || 0), 0).toFixed(1)} L
+                          </Typography>
+                          <Typography variant="body2" sx={{ opacity: 0.8 }}>(From Farmers)</Typography>
+                        </CardContent>
+                      </Card>
+                    </Grid>
+                    <Grid item xs={12} md={4}>
+                      <Card sx={{ bgcolor: 'warning.light', color: 'warning.contrastText', borderRadius: 4 }}>
+                        <CardContent>
+                          <Typography variant="h6" sx={{ opacity: 0.9 }}>Bulk Sales to Orgs</Typography>
+                          <Typography variant="h3" sx={{ fontWeight: 800 }}>
+                            {getFilteredAnalysisData(orgSalesHistory).reduce((sum, s) => sum + (s.quantity || 0), 0).toFixed(1)} L
+                          </Typography>
+                          <Typography variant="body2" sx={{ opacity: 0.8 }}>(Society Stock)</Typography>
+                        </CardContent>
+                      </Card>
+                    </Grid>
+                  </Grid>
+
+                  <Grid container spacing={4}>
+                    {/* User Purchases Table */}
+                    <Grid item xs={12} lg={4}>
+                      <Paper sx={{ p: 2, borderRadius: 4, height: '100%', display: 'flex', flexDirection: 'column' }}>
+                        <Typography variant="h6" sx={{ fontWeight: 700, mb: 2, color: 'info.main' }}>1. Sales to Users</Typography>
+                        <TableContainer sx={{ flexGrow: 1, maxHeight: 400 }}>
+                          <Table stickyHeader size="small">
+                            <TableHead>
+                              <TableRow>
+                                <TableCell sx={{ fontWeight: 700, bgcolor: 'grey.50', cursor: 'pointer' }} onClick={() => requestSort('date')}>Date {sortConfig.key === 'date' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : ''}</TableCell>
+                                <TableCell sx={{ fontWeight: 700, bgcolor: 'grey.50', cursor: 'pointer' }} onClick={() => requestSort('user')}>Customer</TableCell>
+                                <TableCell sx={{ fontWeight: 700, bgcolor: 'grey.50', cursor: 'pointer' }} onClick={() => requestSort('quantity')} align="right">Qty (L)</TableCell>
+                              </TableRow>
+                            </TableHead>
+                            <TableBody>
+                              {sortData(getFilteredAnalysisData(purchases.filter(p => p.status === 'delivered')), sortConfig).map(p => (
+                                <TableRow key={p._id} hover>
+                                  <TableCell>{new Date(p.date || p.createdAt).toLocaleDateString()}</TableCell>
+                                  <TableCell>{p.user?.firstName || 'Unknown'}</TableCell>
+                                  <TableCell align="right" sx={{ fontWeight: 600 }}>{p.quantity}</TableCell>
+                                </TableRow>
+                              ))}
+                              {getFilteredAnalysisData(purchases.filter(p => p.status === 'delivered')).length === 0 && (
+                                <TableRow><TableCell colSpan={3} align="center">No data available</TableCell></TableRow>
+                              )}
+                            </TableBody>
+                          </Table>
+                        </TableContainer>
+                      </Paper>
+                    </Grid>
+                    
+                    {/* Farmer Deliveries Table */}
+                    <Grid item xs={12} lg={4}>
+                      <Paper sx={{ p: 2, borderRadius: 4, height: '100%', display: 'flex', flexDirection: 'column' }}>
+                        <Typography variant="h6" sx={{ fontWeight: 700, mb: 2, color: 'success.main' }}>2. Milk from Farmers</Typography>
+                        <TableContainer sx={{ flexGrow: 1, maxHeight: 400 }}>
+                          <Table stickyHeader size="small">
+                            <TableHead>
+                              <TableRow>
+                                <TableCell sx={{ fontWeight: 700, bgcolor: 'grey.50', cursor: 'pointer' }} onClick={() => requestSort('date')}>Date {sortConfig.key === 'date' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : ''}</TableCell>
+                                <TableCell sx={{ fontWeight: 700, bgcolor: 'grey.50', cursor: 'pointer' }} onClick={() => requestSort('farmer')}>Farmer</TableCell>
+                                <TableCell sx={{ fontWeight: 700, bgcolor: 'grey.50', cursor: 'pointer' }} onClick={() => requestSort('quantity')} align="right">Qty (L)</TableCell>
+                              </TableRow>
+                            </TableHead>
+                            <TableBody>
+                              {sortData(getFilteredAnalysisData(milkRecords.filter(r => r.status && r.status !== 'rejected')), sortConfig).map(r => (
+                                <TableRow key={r._id} hover>
+                                  <TableCell>{new Date(r.date).toLocaleDateString()}</TableCell>
+                                  <TableCell>{r.farmer?.firstName || 'Unknown'}</TableCell>
+                                  <TableCell align="right" sx={{ fontWeight: 600 }}>{r.quantity}</TableCell>
+                                </TableRow>
+                              ))}
+                              {getFilteredAnalysisData(milkRecords.filter(r => r.status && r.status !== 'rejected')).length === 0 && (
+                                <TableRow><TableCell colSpan={3} align="center">No data available</TableCell></TableRow>
+                              )}
+                            </TableBody>
+                          </Table>
+                        </TableContainer>
+                      </Paper>
+                    </Grid>
+
+                    {/* Org Sales Table */}
+                    <Grid item xs={12} lg={4}>
+                      <Paper sx={{ p: 2, borderRadius: 4, height: '100%', display: 'flex', flexDirection: 'column' }}>
+                        <Typography variant="h6" sx={{ fontWeight: 700, mb: 2, color: 'warning.main' }}>3. Bulk Sales (Orgs)</Typography>
+                        <TableContainer sx={{ flexGrow: 1, maxHeight: 400 }}>
+                          <Table stickyHeader size="small">
+                            <TableHead>
+                              <TableRow>
+                                <TableCell sx={{ fontWeight: 700, bgcolor: 'grey.50', cursor: 'pointer' }} onClick={() => requestSort('date')}>Date {sortConfig.key === 'date' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : ''}</TableCell>
+                                <TableCell sx={{ fontWeight: 700, bgcolor: 'grey.50', cursor: 'pointer' }} onClick={() => requestSort('organizationName')}>Organization</TableCell>
+                                <TableCell sx={{ fontWeight: 700, bgcolor: 'grey.50', cursor: 'pointer' }} onClick={() => requestSort('quantity')} align="right">Qty (L)</TableCell>
+                              </TableRow>
+                            </TableHead>
+                            <TableBody>
+                              {sortData(getFilteredAnalysisData(orgSalesHistory), sortConfig).map(s => (
+                                <TableRow key={s._id} hover>
+                                  <TableCell>{new Date(s.date).toLocaleDateString()}</TableCell>
+                                  <TableCell>{s.organizationName}</TableCell>
+                                  <TableCell align="right" sx={{ fontWeight: 600 }}>{s.quantity}</TableCell>
+                                </TableRow>
+                              ))}
+                              {getFilteredAnalysisData(orgSalesHistory).length === 0 && (
+                                <TableRow><TableCell colSpan={3} align="center">No data available</TableCell></TableRow>
+                              )}
+                            </TableBody>
+                          </Table>
+                        </TableContainer>
+                      </Paper>
+                    </Grid>
+                  </Grid>
                 </Box>
               ) : (
                 /* DEFAULT TABLE VIEW */
