@@ -63,6 +63,7 @@ const Dashboard = () => {
   });
   const [sortConfig, setSortConfig] = React.useState({ key: 'date', direction: 'desc' });
   const [directBuyQtys, setDirectBuyQtys] = React.useState({});
+  const [supplementOrders, setSupplementOrders] = React.useState([]);
 
   const getDirectBuyQty = (id) => directBuyQtys[id] || 1;
   const setDirectBuyQty = (id, val) => setDirectBuyQtys(prev => ({ ...prev, [id]: val }));
@@ -123,7 +124,7 @@ const Dashboard = () => {
         setLoadingWorkshops(true);
         const config = { headers: { Authorization: `Bearer ${token}` } };
 
-        const [milkRes, purchaseRes, availRes, workshopRes, supplementRes, directAvailRes, myDirectRes, farmerDirectRes, analyticsRes] = await Promise.all([
+        const [milkRes, purchaseRes, availRes, workshopRes, supplementRes, directAvailRes, myDirectRes, farmerDirectRes, analyticsRes, suppOrderRes] = await Promise.all([
           user?.role === 'farmer' ? axios.get('http://localhost:5000/api/milk/farmer', config) : Promise.resolve({ data: { records: [] } }),
           user?.role === 'user' ? axios.get('http://localhost:5000/api/purchase/user', config) : Promise.resolve({ data: { purchases: [] } }),
           axios.get('http://localhost:5000/api/purchase/available'),
@@ -132,7 +133,8 @@ const Dashboard = () => {
           user?.role === 'user' ? axios.get('http://localhost:5000/api/direct-milk/farmers', config) : Promise.resolve({ data: { availabilities: [] } }),
           user?.role === 'user' ? axios.get('http://localhost:5000/api/direct-milk/user/requests', config) : Promise.resolve({ data: { requests: [] } }),
           user?.role === 'farmer' ? axios.get('http://localhost:5000/api/direct-milk/farmer/requests', config) : Promise.resolve({ data: { requests: [] } }),
-          user?.role === 'farmer' ? axios.get('http://localhost:5000/api/analytics/farmer', config) : Promise.resolve({ data: null })
+          user?.role === 'farmer' ? axios.get('http://localhost:5000/api/analytics/farmer', config) : Promise.resolve({ data: null }),
+          user?.role === 'farmer' ? axios.get('http://localhost:5000/api/supplements/orders', config) : Promise.resolve({ data: { orders: [] } })
         ]);
 
         setMilkRecords(milkRes.data.records || []);
@@ -143,6 +145,8 @@ const Dashboard = () => {
         setDirectAvailabilities(directAvailRes.data.availabilities || []);
         setMyDirectRequests(myDirectRes.data.requests || []);
         setFarmerDirectRequests(farmerDirectRes.data.requests || []);
+        setSupplementOrders(suppOrderRes?.data?.orders || []);
+
         if (analyticsRes && analyticsRes.data) {
           setAnalyticsData({
             income: analyticsRes.data.income || [],
@@ -375,28 +379,30 @@ const Dashboard = () => {
         name: 'Dairy Society Shop',
         description: `Cattle Feed & Supplements Order`,
         order_id: order.id,
-        handler: async (response) => {
+        handler: async (paymentResponse) => {
           try {
             // 3. Verify Payment and Place Order
             const verifyRes = await axios.post('http://localhost:5000/api/payment/verify', {
-              razorpay_order_id: response.razorpay_order_id,
-              razorpay_payment_id: response.razorpay_payment_id,
-              razorpay_signature: response.razorpay_signature
+              razorpay_order_id: paymentResponse.razorpay_order_id,
+              razorpay_payment_id: paymentResponse.razorpay_payment_id,
+              razorpay_signature: paymentResponse.razorpay_signature
             }, config);
 
-            if (verifyRes.data.success) {
-              const response = await axios.post('http://localhost:5000/api/supplements/purchase', { 
+            if (verifyRes.data?.success) {
+              const purchaseRes = await axios.post('http://localhost:5000/api/supplements/purchase', { 
                 items,
-                paymentId: response.razorpay_payment_id
+                paymentId: paymentResponse.razorpay_payment_id
               }, config);
 
-              if (response.data.success) {
+              if (purchaseRes.data?.success) {
                 setOrderMessage({ text: 'Success! Payment processed and order placed.', type: 'success' });
                 setCart({});
               }
             }
           } catch (err) {
-            setOrderMessage({ text: 'Payment verification failed', type: 'error' });
+            console.error('Payment Verification Error:', err);
+            const errMsg = err.response?.data?.message || err.message || 'Payment verification failed';
+            setOrderMessage({ text: errMsg, type: 'error' });
           }
         },
         prefill: {
@@ -411,6 +417,7 @@ const Dashboard = () => {
       rzp.open();
 
     } catch (error) {
+      console.error('Supplement Purchase Error:', error);
       const errorMsg = error.response?.data?.message || error.message || 'Order failed';
       setOrderMessage({ text: errorMsg, type: 'error' });
     }
@@ -858,7 +865,7 @@ const Dashboard = () => {
               {activeTab === 'direct-manage' && (
                 <Grid container spacing={3}>
                   {/* Post Availability */}
-                  <Grid item xs={12} md={4}>
+                  <Grid item xs={12}>
                     <Paper sx={{ p: 4, borderRadius: 4, boxShadow: '0 4px 20px rgba(0,0,0,0.05)', border: '1px solid', borderColor: 'divider' }}>
                       <Typography variant="h6" sx={{ fontWeight: 700, mb: 3, display: 'flex', alignItems: 'center', gap: 1.5 }}>
                         <Droplets size={22} color={theme.palette.primary.main} /> Post Availability
@@ -913,7 +920,7 @@ const Dashboard = () => {
                   </Grid>
 
                   {/* Incoming Requests */}
-                  <Grid item xs={12} md={8}>
+                  <Grid item xs={12}>
                     <Paper sx={{ p: 3, borderRadius: 4, boxShadow: '0 4px 20px rgba(0,0,0,0.05)', border: '1px solid', borderColor: 'divider' }}>
                       <Typography variant="h6" sx={{ fontWeight: 700, mb: 3, display: 'flex', alignItems: 'center', gap: 1.5 }}>
                         <Users size={22} color={theme.palette.primary.main} /> Incoming Requests
@@ -1169,55 +1176,64 @@ const Dashboard = () => {
 
                {/* Performance Analytics (Farmer) */}
               {activeTab === 'analytics' && (
-                <Grid container spacing={3}>
-                  <Grid item xs={12} md={4}>
-                    <Card sx={{ borderRadius: 4, height: '100%', bgcolor: 'rgba(251, 191, 36, 0.05)', border: '1px solid rgba(251, 191, 36, 0.2)', boxShadow: '0 4px 20px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column' }}>
-                      <CardContent sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
-                          <Avatar sx={{ bgcolor: 'warning.main' }}><Star /></Avatar>
-                          <Typography variant="subtitle2" color="warning.main" sx={{ fontWeight: 700 }}>Farmer Rating</Typography>
+                <Grid container spacing={3} alignItems="stretch">
+                  <Grid item xs={12} md={6}>
+                    <Card sx={{ 
+                      borderRadius: 4, 
+                      height: '100%', 
+                      bgcolor: 'rgba(251, 191, 36, 0.05)', 
+                      border: '1px solid rgba(251, 191, 36, 0.2)', 
+                      boxShadow: '0 4px 20px rgba(0,0,0,0.05)', 
+                      display: 'flex', 
+                      flexDirection: 'column' 
+                    }}>
+                      <CardContent sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column', p: 3 }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3 }}>
+                          <Avatar sx={{ bgcolor: 'warning.main', width: 48, height: 48 }}><Star /></Avatar>
+                          <Typography variant="subtitle2" color="warning.main" sx={{ fontWeight: 800, textTransform: 'uppercase', letterSpacing: 1 }}>Farmer Rating</Typography>
                         </Box>
-                        <Typography variant="h3" sx={{ fontWeight: 800 }}>{analyticsData.rating?.average || 0}</Typography>
-                        <Typography variant="body2" color="text.secondary">Based on {analyticsData.rating?.count || 0} reviews</Typography>
-                        <Box sx={{ mt: 2, display: 'flex' }}>
+                        <Box sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                          <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1 }}>
+                            <Typography variant="h2" sx={{ fontWeight: 900, lineHeight: 1 }}>{analyticsData.rating?.average || 0}</Typography>
+                            <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 600 }}>/ 5.0</Typography>
+                          </Box>
+                          <Typography variant="body2" color="text.secondary" sx={{ mt: 1, fontWeight: 500 }}>Based on {analyticsData.rating?.count || 0} reviews</Typography>
+                        </Box>
+                        <Box sx={{ mt: 3, display: 'flex', gap: 0.5 }}>
                           {[1,2,3,4,5].map(s => (
-                            <Star key={s} size={18} fill={s <= Math.round(analyticsData.rating?.average || 0) ? '#fbbf24' : 'none'} color="#fbbf24" style={{ opacity: s <= Math.round(analyticsData.rating?.average || 0) ? 1 : 0.3 }} />
+                            <Star key={s} size={20} fill={s <= Math.round(analyticsData.rating?.average || 0) ? '#fbbf24' : 'none'} color="#fbbf24" style={{ opacity: s <= Math.round(analyticsData.rating?.average || 0) ? 1 : 0.2 }} />
                           ))}
                         </Box>
                       </CardContent>
                     </Card>
                   </Grid>
 
-                  <Grid item xs={12} md={4}>
-                    <Card sx={{ borderRadius: 4, height: '100%', bgcolor: 'rgba(16, 185, 129, 0.05)', border: '1px solid rgba(16, 185, 129, 0.2)', boxShadow: '0 4px 20px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column' }}>
-                      <CardContent sx={{ textAlign: 'center', flexGrow: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-                        <Box><Typography variant="h4" sx={{ mb: 1 }}>{analyticsData.benchmark.isAboveAverage ? '👑' : '⭐'}</Typography></Box>
-                        <Typography variant="h6" sx={{ fontWeight: 800 }}>Quality Benchmark</Typography>
-                        <Chip 
-                          label={analyticsData.benchmark.isAboveAverage ? 'Above Society Average' : 'Society Standard'} 
-                          color={analyticsData.benchmark.isAboveAverage ? 'success' : 'info'}
-                          sx={{ mt: 1, fontWeight: 700 }}
-                        />
-                        <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
-                          Your milk quality consistently meets or exceeds the society standards.
-                        </Typography>
-                      </CardContent>
-                    </Card>
-                  </Grid>
-
-                  <Grid item xs={12} md={4}>
-                    <Card sx={{ borderRadius: 4, height: '100%', bgcolor: 'rgba(245, 158, 11, 0.05)', border: '1px solid rgba(245, 158, 11, 0.2)', boxShadow: '0 4px 20px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column' }}>
-                      <CardContent sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
-                          <Avatar sx={{ bgcolor: 'secondary.main' }}><TrendingUp /></Avatar>
-                          <Typography variant="subtitle2" color="secondary.main" sx={{ fontWeight: 700 }}>Recent Delivery</Typography>
+                  <Grid item xs={12} md={6}>
+                    <Card sx={{ 
+                      borderRadius: 4, 
+                      height: '100%', 
+                      bgcolor: 'rgba(245, 158, 11, 0.05)', 
+                      border: '1px solid rgba(245, 158, 11, 0.2)', 
+                      boxShadow: '0 4px 20px rgba(0,0,0,0.05)', 
+                      display: 'flex', 
+                      flexDirection: 'column' 
+                    }}>
+                      <CardContent sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column', p: 3 }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3 }}>
+                          <Avatar sx={{ bgcolor: 'secondary.main', width: 48, height: 48 }}><TrendingUp /></Avatar>
+                          <Typography variant="subtitle2" color="secondary.main" sx={{ fontWeight: 800, textTransform: 'uppercase', letterSpacing: 1 }}>Recent Delivery</Typography>
                         </Box>
-                        <Typography variant="h3" sx={{ fontWeight: 800 }}>
-                          {analyticsData.income.length > 0 ? analyticsData.income[analyticsData.income.length - 1].quantity.toFixed(1) : 0} L
-                        </Typography>
-                        <Typography variant="body2" color="text.secondary">
-                          Last delivery recorded in {analyticsData.income.length > 0 ? analyticsData.income[analyticsData.income.length - 1]._id : 'this period'}
-                        </Typography>
+                        <Box sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                          <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1 }}>
+                            <Typography variant="h2" sx={{ fontWeight: 900, lineHeight: 1 }}>
+                              {analyticsData.income.length > 0 ? analyticsData.income[analyticsData.income.length - 1].quantity.toFixed(1) : 0}
+                            </Typography>
+                            <Typography variant="h5" color="text.secondary" sx={{ fontWeight: 800 }}>L</Typography>
+                          </Box>
+                          <Typography variant="body2" color="text.secondary" sx={{ mt: 1, fontWeight: 500 }}>
+                            Last delivery recorded in {analyticsData.income.length > 0 ? analyticsData.income[analyticsData.income.length - 1]._id : 'this period'}
+                          </Typography>
+                        </Box>
                       </CardContent>
                     </Card>
                   </Grid>
@@ -1230,37 +1246,59 @@ const Dashboard = () => {
                           <BarChart3 size={28} color={theme.palette.secondary.main} />
                         </Box>
                       </Box>
-                      <Box sx={{ width: '100%', flexGrow: 1, minHeight: 350 }}>
-                        <ResponsiveContainer>
-                          <BarChart data={analyticsData.income} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
-                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                            <XAxis 
-                              dataKey="_id" 
-                              axisLine={false} 
-                              tickLine={false}
-                              tick={{ fontSize: 12, fill: '#64748b' }}
-                              tickFormatter={(str) => {
-                                try {
-                                  const date = new Date(str + '-01');
-                                  return date.toLocaleDateString(undefined, { month: 'short' });
-                                } catch (e) {
-                                  return str;
-                                }
-                              }}
-                            />
-                            <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#64748b' }} />
-                            <ChartTooltip 
-                              cursor={{ fill: 'rgba(0,0,0,0.02)' }}
-                              contentStyle={{ borderRadius: 12, border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
-                            />
-                            <Bar 
-                              dataKey="earnings" 
-                              fill={theme.palette.primary.main} 
-                              radius={[6, 6, 0, 0]}
-                              barSize={isMobile ? 25 : 45}
-                            />
-                          </BarChart>
-                        </ResponsiveContainer>
+                      <Box sx={{ width: '100%', flexGrow: 1, minHeight: 400, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        {analyticsData.income && analyticsData.income.length > 0 ? (
+                          <ResponsiveContainer width="100%" height={400}>
+                            <BarChart data={analyticsData.income} margin={{ top: 20, right: 30, left: 10, bottom: 20 }}>
+                              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                              <XAxis 
+                                dataKey="_id" 
+                                axisLine={false} 
+                                tickLine={false}
+                                tick={{ fontSize: 13, fill: '#64748b', fontWeight: 600 }}
+                                dy={10}
+                                tickFormatter={(str) => {
+                                  try {
+                                    if (!str) return '';
+                                    const parts = str.split('-');
+                                    if (parts.length === 2) {
+                                      const date = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, 1);
+                                      return date.toLocaleDateString(undefined, { month: 'short', year: '2-digit' });
+                                    }
+                                    return str;
+                                  } catch (e) {
+                                    return str;
+                                  }
+                                }}
+                              />
+                              <YAxis 
+                                axisLine={false} 
+                                tickLine={false} 
+                                tick={{ fontSize: 13, fill: '#64748b', fontWeight: 600 }}
+                                dx={-5}
+                                tickFormatter={(val) => `₹${val}`}
+                              />
+                              <ChartTooltip 
+                                cursor={{ fill: 'rgba(0,0,0,0.03)' }}
+                                contentStyle={{ borderRadius: 16, border: 'none', boxShadow: '0 10px 40px rgba(0,0,0,0.1)', padding: '12px 16px' }}
+                                itemStyle={{ fontWeight: 700 }}
+                                labelStyle={{ color: '#64748b', marginBottom: 4 }}
+                              />
+                              <Bar 
+                                dataKey="earnings" 
+                                fill={theme.palette.primary.main} 
+                                radius={[8, 8, 0, 0]}
+                                barSize={isMobile ? 30 : 50}
+                              />
+                            </BarChart>
+                          </ResponsiveContainer>
+                        ) : (
+                          <Box sx={{ textAlign: 'center', py: 10 }}>
+                            <Box sx={{ color: 'text.secondary', mb: 2, opacity: 0.3 }}><BarChart3 size={80} /></Box>
+                            <Typography variant="h6" color="text.secondary" sx={{ fontWeight: 700 }}>No Income Data Found</Typography>
+                            <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>Start delivering milk to see your income tracker in action.</Typography>
+                          </Box>
+                        )}
                       </Box>
                     </Paper>
                   </Grid>
@@ -1270,67 +1308,161 @@ const Dashboard = () => {
               {/* Cattle Feed Shop (Farmer) */}
               {activeTab === 'feed' && (
                 <Grid container spacing={3}>
-                  <Grid item xs={12} lg={8}>
-                    <Paper sx={{ p: 3, borderRadius: 4, mb: 3, boxShadow: '0 4px 20px rgba(0,0,0,0.05)', border: '1px solid', borderColor: 'divider' }}>
-                      <Box sx={{ display: 'flex', overflowX: 'auto', gap: 1, pb: 1 }}>
-                        {['All', 'Green Fodder', 'Dry Fodder', 'Concentrate Feed', 'Cattle Supplements'].map(cat => (
-                          <Chip 
-                            key={cat} 
-                            label={cat}
-                            onClick={() => setSupplementCategory(cat)}
-                            color={supplementCategory === cat ? 'primary' : 'default'}
-                            variant={supplementCategory === cat ? 'contained' : 'outlined'}
-                            sx={{ fontWeight: 600, flexShrink: 0 }}
-                          />
-                        ))}
-                      </Box>
-                    </Paper>
+                  {/* Product Area */}
+                  <Grid item xs={12} md={8.5} lg={9}>
+                    <Box sx={{ 
+                      mb: 4, 
+                      display: 'flex', 
+                      gap: 2, 
+                      overflowX: 'auto', 
+                      pb: 1,
+                      '&::-webkit-scrollbar': { height: 6 },
+                      '&::-webkit-scrollbar-thumb': { bgcolor: 'rgba(0,0,0,0.1)', borderRadius: 3 }
+                    }}>
+                      {[
+                        { id: 'All', label: 'All', icon: <Package size={18} /> },
+                        { id: 'Green Fodder', label: 'Green', icon: <Sprout size={18} /> },
+                        { id: 'Dry Fodder', label: 'Dry', icon: <Leaf size={18} /> },
+                        { id: 'Concentrate Feed', label: 'Concentrate', icon: <TrendingUp size={18} /> },
+                        { id: 'Cattle Supplements', label: 'Supplements', icon: <Plus size={18} /> }
+                      ].map(cat => (
+                        <Button
+                          key={cat.id}
+                          onClick={() => setSupplementCategory(cat.id)}
+                          variant={supplementCategory === cat.id ? 'contained' : 'outlined'}
+                          startIcon={cat.icon}
+                          sx={{
+                            borderRadius: '14px',
+                            px: 3,
+                            py: 1,
+                            whiteSpace: 'nowrap',
+                            fontWeight: 700,
+                            textTransform: 'none',
+                            transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                            bgcolor: supplementCategory === cat.id ? 'primary.main' : 'white',
+                            color: supplementCategory === cat.id ? 'white' : 'text.secondary',
+                            border: '2px solid',
+                            borderColor: supplementCategory === cat.id ? 'primary.main' : 'divider',
+                            '&:hover': {
+                              transform: 'translateY(-2px)',
+                              borderColor: 'primary.main',
+                              bgcolor: supplementCategory === cat.id ? 'primary.dark' : 'rgba(26, 93, 26, 0.05)'
+                            }
+                          }}
+                        >
+                          {cat.label}
+                        </Button>
+                      ))}
+                    </Box>
 
-                    <Grid container spacing={2}>
+                    <Box sx={{
+                      display: 'grid',
+                      gridTemplateColumns: {
+                        xs: '1fr',
+                        sm: 'repeat(2, 1fr)',
+                        md: 'repeat(3, 1fr)',
+                        lg: 'repeat(3, 1fr)',
+                        xl: 'repeat(4, 1fr)'
+                      },
+                      gap: 3
+                    }}>
                       {supplements
                         .filter(s => supplementCategory === 'All' || s.category === supplementCategory)
                         .map(item => (
-                          <Grid item xs={12} sm={6} key={item._id}>
-                            <Card sx={{ borderRadius: 4, overflow: 'hidden', height: '100%', display: 'flex', flexDirection: 'column', position: 'relative', boxShadow: '0 4px 20px rgba(0,0,0,0.05)', border: '1px solid', borderColor: 'divider' }}>
+                          <motion.div 
+                            key={item._id}
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            whileHover={{ y: -10 }}
+                          >
+                            <Card sx={{ 
+                              borderRadius: 4, 
+                              height: '100%', 
+                              display: 'flex', 
+                              flexDirection: 'column',
+                              position: 'relative',
+                              boxShadow: '0 4px 12px rgba(0,0,0,0.05)',
+                              border: '1px solid',
+                              borderColor: 'divider',
+                              transition: 'all 0.3s ease',
+                              '&:hover': {
+                                boxShadow: '0 20px 40px rgba(0,0,0,0.1)',
+                                borderColor: 'primary.light'
+                              }
+                            }}>
                               {!item.inStock && (
-                                <Box sx={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, bgcolor: 'rgba(255,255,255,0.7)', zIndex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                  <Chip label="Out of Stock" color="error" sx={{ fontWeight: 800 }} />
+                                <Box sx={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, bgcolor: 'rgba(255,255,255,0.7)', zIndex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(3px)' }}>
+                                  <Chip label="OUT OF STOCK" color="error" sx={{ fontWeight: 900, borderRadius: 2 }} />
                                 </Box>
                               )}
-                              <Box sx={{ height: 200, bgcolor: 'rgba(0,0,0,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                              
+                              <Box sx={{ height: 160, position: 'relative', bgcolor: 'rgba(0,0,0,0.02)' }}>
                                 {item.image ? (
                                   <img src={`http://localhost:5000${item.image}`} alt={item.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                                 ) : (
-                                  <Package size={48} color="#cbd5e1" />
+                                  <Box sx={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0.3 }}>
+                                    <Package size={48} />
+                                  </Box>
                                 )}
+                                <Box sx={{ position: 'absolute', bottom: 0, left: 0, right: 0, p: 1, background: 'linear-gradient(to top, rgba(0,0,0,0.4), transparent)' }}>
+                                  <Chip 
+                                    label={item.category} 
+                                    size="small" 
+                                    sx={{ 
+                                      bgcolor: 'rgba(255,255,255,0.9)', 
+                                      color: 'primary.main', 
+                                      fontWeight: 800, 
+                                      fontSize: '0.6rem',
+                                      height: 20
+                                    }} 
+                                  />
+                                </Box>
                               </Box>
-                              <CardContent sx={{ flexGrow: 1 }}>
-                                <Typography variant="caption" color="primary" sx={{ fontWeight: 700, textTransform: 'uppercase' }}>{item.category}</Typography>
-                                <Typography variant="h6" sx={{ fontWeight: 800, mt: 0.5 }}>{item.name}</Typography>
-                                <Typography variant="body2" color="text.secondary" sx={{ mt: 1, mb: 2, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+
+                              <CardContent sx={{ p: 2, flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
+                                <Typography variant="subtitle1" sx={{ fontWeight: 800, lineHeight: 1.2, mb: 1, height: '2.4em', overflow: 'hidden' }}>
+                                  {item.name}
+                                </Typography>
+                                <Typography variant="caption" color="text.secondary" sx={{ mb: 2, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', minHeight: '3em' }}>
                                   {item.description}
                                 </Typography>
-                                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                  <Typography variant="h6" sx={{ fontWeight: 800 }}>₹{item.pricePerUnit} <Typography component="span" variant="caption">/{item.unit}</Typography></Typography>
+                                
+                                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', mt: 'auto' }}>
+                                  <Box>
+                                    <Typography variant="h6" sx={{ fontWeight: 900, color: 'primary.main', lineHeight: 1 }}>
+                                      ₹{item.pricePerUnit}
+                                    </Typography>
+                                    <Typography variant="caption" color="text.secondary">
+                                      per {item.unit}
+                                    </Typography>
+                                  </Box>
                                   <Button 
                                     size="small" 
-                                    variant="outlined" 
+                                    variant="contained" 
                                     onClick={() => addToCart(item._id)}
                                     disabled={!item.inStock}
-                                    sx={{ borderRadius: 2, fontWeight: 700 }}
+                                    sx={{ 
+                                      borderRadius: 2, 
+                                      fontWeight: 800,
+                                      px: 2,
+                                      minWidth: 'unset',
+                                      boxShadow: 'none',
+                                      '&:hover': { boxShadow: '0 4px 12px rgba(26, 93, 26, 0.2)' }
+                                    }}
                                   >
-                                    {cart[item._id] ? `Added (${cart[item._id]})` : 'Add to Cart'}
+                                    {cart[item._id] ? `+${cart[item._id]}` : 'Add'}
                                   </Button>
                                 </Box>
                               </CardContent>
                             </Card>
-                          </Grid>
+                          </motion.div>
                         ))}
-                    </Grid>
+                    </Box>
                   </Grid>
 
-                  <Grid item xs={12} lg={4}>
-                    <Paper sx={{ p: 4, borderRadius: 4, position: 'sticky', top: 100, boxShadow: '0 4px 20px rgba(0,0,0,0.05)', border: '1px solid', borderColor: 'divider' }}>
+                  {/* Cart Area */}
+                  <Grid item xs={12} md={3.5} lg={3}>
+                    <Paper sx={{ p: 3, borderRadius: 5, position: 'sticky', top: 100, boxShadow: '0 10px 40px rgba(0,0,0,0.08)', border: '1px solid', borderColor: 'divider', bgcolor: 'white' }}>
                       <Typography variant="h6" sx={{ fontWeight: 700, mb: 3, display: 'flex', alignItems: 'center', gap: 1.5 }}>
                         <ShoppingBag size={22} color={theme.palette.secondary.main} /> Your Cart
                       </Typography>
@@ -1361,7 +1493,7 @@ const Dashboard = () => {
                             })}
                           </List>
                           <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 3 }}>
-                            <Typography sx={{ fontWeight: 700 }}>Total Amount</Typography>
+                            <Typography sx={{ fontWeight: 700 }}>Total</Typography>
                             <Typography sx={{ fontWeight: 800, color: 'primary.main' }}>
                               ₹{Object.entries(cart).reduce((total, [id, qty]) => {
                                 const item = supplements.find(s => s._id === id);
@@ -1389,6 +1521,78 @@ const Dashboard = () => {
                         >
                           {orderMessage.text}
                         </Typography>
+                      )}
+                    </Paper>
+                  </Grid>
+
+                  {/* Shopping History Section */}
+                  <Grid item xs={12} sx={{ mt: 2 }}>
+                    <Paper sx={{ p: 4, borderRadius: 5, boxShadow: '0 4px 25px rgba(0,0,0,0.05)', border: '1px solid', borderColor: 'divider' }}>
+                      <Box sx={{ mb: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <Typography variant="h5" sx={{ fontWeight: 800, display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                          <History size={24} color={theme.palette.primary.main} /> Shopping History
+                        </Typography>
+                        <Chip 
+                          label={`${supplementOrders.length} Orders`} 
+                          color="primary" 
+                          variant="outlined" 
+                          sx={{ fontWeight: 700, borderRadius: 2 }} 
+                        />
+                      </Box>
+
+                      {supplementOrders.length === 0 ? (
+                        <Box sx={{ textAlign: 'center', py: 8, bgcolor: 'rgba(0,0,0,0.01)', borderRadius: 4, border: '1px dashed', borderColor: 'divider' }}>
+                          <Typography color="text.secondary">No shopping history available yet.</Typography>
+                        </Box>
+                      ) : (
+                        <Box sx={{ overflowX: 'auto' }}>
+                          <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: '0 8px' }}>
+                            <thead>
+                              <tr>
+                                {['Date & Time', 'Items Purchased', 'Total Amount', 'Status'].map((h) => (
+                                  <th key={h} style={{ textAlign: 'left', padding: '12px 16px', color: '#64748b', fontWeight: 700, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{h}</th>
+                                ))}
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {supplementOrders.map((order) => (
+                                <tr key={order._id} style={{ backgroundColor: 'white' }}>
+                                  <td style={{ padding: '16px', borderRadius: '12px 0 0 12px', border: '1px solid #f1f5f9', borderRight: 'none' }}>
+                                    <Typography variant="body2" sx={{ fontWeight: 700 }}>{formatDateTime(order.createdAt || order.date)}</Typography>
+                                  </td>
+                                  <td style={{ padding: '16px', borderTop: '1px solid #f1f5f9', borderBottom: '1px solid #f1f5f9' }}>
+                                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                                      {order.items.map((item, idx) => (
+                                        <Chip 
+                                          key={idx} 
+                                          label={`${item.supplement?.name || 'Item'} x ${item.quantity}`} 
+                                          size="small" 
+                                          sx={{ 
+                                            bgcolor: 'rgba(26, 93, 26, 0.05)', 
+                                            fontWeight: 600, 
+                                            fontSize: '0.75rem',
+                                            border: '1px solid rgba(26, 93, 26, 0.1)' 
+                                          }} 
+                                        />
+                                      ))}
+                                    </Box>
+                                  </td>
+                                  <td style={{ padding: '16px', borderTop: '1px solid #f1f5f9', borderBottom: '1px solid #f1f5f9' }}>
+                                    <Typography sx={{ fontWeight: 900, color: 'primary.main' }}>₹{order.totalAmount.toFixed(2)}</Typography>
+                                  </td>
+                                  <td style={{ padding: '16px', borderRadius: '12px 0 12px 0', border: '1px solid #f1f5f9', borderLeft: 'none' }}>
+                                    <Chip 
+                                      label={order.paymentStatus === 'Completed' ? 'Paid' : order.status} 
+                                      size="small"
+                                      color={order.paymentStatus === 'Completed' ? 'success' : 'warning'}
+                                      sx={{ fontWeight: 700, textTransform: 'uppercase', fontSize: '0.65rem' }}
+                                    />
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </Box>
                       )}
                     </Paper>
                   </Grid>

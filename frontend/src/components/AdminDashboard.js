@@ -2,18 +2,18 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import { 
-  Box, Drawer, AppBar, Toolbar, List, ListItem, ListItemButton, 
-  ListItemIcon, ListItemText, Typography, Button, IconButton, 
-  Container, Paper, Grid, Card, CardContent, Avatar, Chip, 
+import {
+  Box, Drawer, AppBar, Toolbar, List, ListItem, ListItemButton,
+  ListItemIcon, ListItemText, Typography, Button, IconButton,
+  Container, Paper, Grid, Card, CardContent, Avatar, Chip,
   TextField, InputAdornment, useTheme, useMediaQuery, Fade,
-  Menu, MenuItem, Divider, Tooltip, Dialog, DialogTitle, 
+  Menu, MenuItem, Divider, Tooltip, Dialog, DialogTitle,
   DialogContent, DialogActions, FormControlLabel, Checkbox,
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow
 } from '@mui/material';
-import { 
-  Users, UserPlus, Milk, ShoppingCart, Plus, Edit2, Trash2, 
-  CheckCircle, XCircle, Calendar, Sprout, Package, Building2, 
+import {
+  Users, UserPlus, Milk, ShoppingCart, Plus, Edit2, Trash2,
+  CheckCircle, XCircle, Calendar, Sprout, Package, Building2,
   BarChart3, LogOut, Search, Menu as MenuIcon, ChevronRight,
   TrendingUp, Award, Star, History
 } from 'lucide-react';
@@ -26,7 +26,7 @@ const AdminDashboard = () => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const [mobileOpen, setMobileOpen] = useState(false);
-  
+
   const { user, token, logout } = useAuth();
   const navigate = useNavigate();
   const [users, setUsers] = useState([]);
@@ -356,7 +356,7 @@ const AdminDashboard = () => {
       if (!record) return alert('Record not found');
 
       const config = { headers: { Authorization: `Bearer ${token}` } };
-      
+
       // 1. Create Razorpay Order
       const orderRes = await axios.post('http://localhost:5000/api/payment/create-order', {
         amount: record.totalAmount,
@@ -591,7 +591,7 @@ const AdminDashboard = () => {
     return [...data].sort((a, b) => {
       let aVal = a[config.key];
       let bVal = b[config.key];
-      
+
       // Handle nested properties for farmers/users
       if (config.key === 'name') {
         aVal = `${a.firstName} ${a.lastName}`.toLowerCase();
@@ -611,14 +611,14 @@ const AdminDashboard = () => {
   };
 
   const filteredUsers = sortData(users.filter(u =>
-    (u.firstName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+  (u.firstName.toLowerCase().includes(searchQuery.toLowerCase()) ||
     u.lastName.toLowerCase().includes(searchQuery.toLowerCase()) ||
     u.username.toLowerCase().includes(searchQuery.toLowerCase()) ||
     u.email.toLowerCase().includes(searchQuery.toLowerCase()))
   ), sortConfig);
 
   const filteredFarmers = sortData(farmers.filter(f =>
-    (f.firstName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+  (f.firstName.toLowerCase().includes(searchQuery.toLowerCase()) ||
     f.lastName.toLowerCase().includes(searchQuery.toLowerCase()) ||
     f.username.toLowerCase().includes(searchQuery.toLowerCase()) ||
     f.email.toLowerCase().includes(searchQuery.toLowerCase()))
@@ -629,7 +629,7 @@ const AdminDashboard = () => {
       r.farmer?.lastName?.toLowerCase().includes(milkSearchQuery.toLowerCase()) ||
       r.farmer?.username?.toLowerCase().includes(milkSearchQuery.toLowerCase()) ||
       r.status.toLowerCase().includes(milkSearchQuery.toLowerCase());
-    
+
     const matchesDate = !dateFilter || new Date(r.date).toISOString().split('T')[0] === dateFilter;
     return matchesSearch && matchesDate;
   }), sortConfig);
@@ -685,12 +685,12 @@ const AdminDashboard = () => {
               <ListItemIcon sx={{ color: 'white', minWidth: 40 }}>
                 {item.icon}
               </ListItemIcon>
-              <ListItemText 
-                primary={item.label} 
-                primaryTypographyProps={{ 
-                  fontSize: '0.9rem', 
-                  fontWeight: activeTab === item.id ? 700 : 500 
-                }} 
+              <ListItemText
+                primary={item.label}
+                primaryTypographyProps={{
+                  fontSize: '0.9rem',
+                  fontWeight: activeTab === item.id ? 700 : 500
+                }}
               />
               {activeTab === item.id && <ChevronRight size={16} />}
             </ListItemButton>
@@ -820,9 +820,9 @@ const AdminDashboard = () => {
             >
               {activeTab === 'collect' ? (
                 <Box sx={{ p: { xs: 1, md: 0 } }}>
-                  <Paper sx={{ 
-                    p: { xs: 4, md: 6 }, 
-                    borderRadius: 4, 
+                  <Paper sx={{
+                    p: { xs: 4, md: 6 },
+                    borderRadius: 4,
                     width: '100%',
                     maxWidth: 1100,
                     mx: 'auto',
@@ -986,7 +986,7 @@ const AdminDashboard = () => {
                                   <Typography variant="h4" sx={{ fontWeight: 800 }}>₹{pricePreview.toFixed(2)}<Typography component="span" variant="subtitle1" sx={{ ml: 1, opacity: 0.7 }}>/ liter</Typography></Typography>
                                   <Typography variant="body2" color="text.secondary">Total: Requesting ₹{(pricePreview * (milkFormData.quantity || 0)).toFixed(2)}</Typography>
                                 </Box>
-                                
+
                                 {qualityIndicator && (
                                   <Box sx={{ textAlign: 'center', p: 2, bgcolor: `${qualityIndicator.color}15`, borderRadius: 4, border: '1px solid', borderColor: qualityIndicator.color }}>
                                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
@@ -1002,16 +1002,16 @@ const AdminDashboard = () => {
                         )}
 
                         {/* Row 5: Submit Button (Centered) */}
-                        <Grid item xs={12} md={6} sx={{ mx: 'auto', mt: 2 }}>
-                          <Button 
-                            type="submit" 
-                            variant="contained" 
-                            fullWidth 
-                            size="large" 
-                            sx={{ 
-                              height: 72, 
-                              borderRadius: '50px', 
-                              fontSize: '1.4rem', 
+                        <Grid item xs={12} md={6} sx={{ ml: '360px', mt: '60px' }}>
+                          <Button
+                            type="submit"
+                            variant="contained"
+                            fullWidth
+                            size="large"
+                            sx={{
+                              height: 72,
+                              borderRadius: '50px',
+                              fontSize: '1.4rem',
                               fontWeight: 900,
                               bgcolor: 'primary.main',
                               '&:hover': { bgcolor: 'primary.dark', transform: 'scale(1.01)' },
@@ -1044,7 +1044,7 @@ const AdminDashboard = () => {
                       </Grid>
                     </form>
                   </Paper>
-                  
+
                   <Paper sx={{ borderRadius: 4, overflow: 'hidden' }}>
                     <TableContainer>
                       <Table>
@@ -1129,10 +1129,10 @@ const AdminDashboard = () => {
                               <Sprout size={48} color={theme.palette.grey[400]} />
                             )}
                             <Box sx={{ position: 'absolute', top: 12, right: 12 }}>
-                              <Chip 
-                                label={s.inStock ? 'In Stock' : 'Out of Stock'} 
-                                size="small" 
-                                color={s.inStock ? 'success' : 'error'} 
+                              <Chip
+                                label={s.inStock ? 'In Stock' : 'Out of Stock'}
+                                size="small"
+                                color={s.inStock ? 'success' : 'error'}
                                 sx={{ fontWeight: 700 }}
                               />
                             </Box>
@@ -1268,12 +1268,12 @@ const AdminDashboard = () => {
                   <Box sx={{ p: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center', bgcolor: 'white', borderBottom: '1px solid', borderColor: 'divider' }}>
                     <Typography variant="h6" sx={{ fontWeight: 700 }}>
                       {activeTab === 'users' ? 'Registered Users' :
-                       activeTab === 'farmers' ? 'Dairy Farmers' :
-                       activeTab === 'milk' ? 'Collection History' :
-                       activeTab === 'sales' ? 'Customer Orders' : 
-                       menuItems.find(i => i.id === activeTab)?.label}
+                        activeTab === 'farmers' ? 'Dairy Farmers' :
+                          activeTab === 'milk' ? 'Collection History' :
+                            activeTab === 'sales' ? 'Customer Orders' :
+                              menuItems.find(i => i.id === activeTab)?.label}
                     </Typography>
-                    
+
                     <Box sx={{ display: 'flex', gap: 2 }}>
                       <TextField
                         size="small"
@@ -1314,7 +1314,7 @@ const AdminDashboard = () => {
                       )}
                     </Box>
                   </Box>
-                  
+
                   {/* DATA TABLES */}
                   <Box sx={{ p: 0 }}>
                     {loading ? (
@@ -1358,132 +1358,132 @@ const AdminDashboard = () => {
                             </TableRow>
                           </TableHead>
                           <TableBody>
-                            {(activeTab === 'users' ? filteredUsers : 
-                              activeTab === 'farmers' ? filteredFarmers : 
-                              activeTab === 'milk' ? filteredMilkRecords : 
-                              activeTab === 'sales' ? filteredPurchases : []).map((row) => (
-                              <TableRow key={row._id} hover sx={{ '&:last-child td, &:last-child th': { border: 0 } }}>
-                                {activeTab === 'users' || activeTab === 'farmers' ? (
-                                  <>
-                                    <TableCell>
-                                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                                        <Avatar sx={{ width: 32, height: 32, bgcolor: 'primary.main', fontSize: '0.875rem' }}>
-                                          {row.firstName.charAt(0)}
-                                        </Avatar>
-                                        <Box>
-                                          <Typography variant="body2" sx={{ fontWeight: 700 }}>{row.firstName} {row.lastName}</Typography>
-                                          <Typography variant="caption" color="text.secondary">{row.email}</Typography>
-                                        </Box>
-                                      </Box>
-                                    </TableCell>
-                                    <TableCell><Typography variant="body2" sx={{ color: 'primary.main', fontWeight: 600 }}>@{row.username}</Typography></TableCell>
-                                    <TableCell>
-                                      <Typography variant="body2">{row.phone}</Typography>
-                                      <Typography variant="caption" color="text.secondary">{row.address}</Typography>
-                                    </TableCell>
-                                    {activeTab === 'farmers' && <TableCell><Typography variant="body2">{row.aadhar}</Typography></TableCell>}
-                                    <TableCell>
-                                      <Chip 
-                                        label={row.isActive ? 'Active' : 'Inactive'} 
-                                        size="small"
-                                        color={row.isActive ? 'success' : 'error'}
-                                        sx={{ fontWeight: 600, borderRadius: 1.5 }}
-                                      />
-                                    </TableCell>
-                                    <TableCell align="right">
-                                      <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1 }}>
-                                        <Tooltip title="Edit">
-                                          <IconButton size="small" onClick={() => openEditModal(row, activeTab.slice(0, -1))} sx={{ color: 'primary.main' }}><Edit2 size={18} /></IconButton>
-                                        </Tooltip>
-                                        <Tooltip title={row.isActive ? 'Deactivate' : 'Activate'}>
-                                          <IconButton size="small" onClick={() => toggleActive(row._id, activeTab.slice(0, -1), row.isActive)}>
-                                            {row.isActive ? <XCircle size={18} color={theme.palette.error.main} /> : <CheckCircle size={18} color={theme.palette.success.main} />}
-                                          </IconButton>
-                                        </Tooltip>
-                                        <Tooltip title="Delete">
-                                          <IconButton size="small" onClick={() => handleDelete(row._id, activeTab.slice(0, -1))} sx={{ color: 'error.main' }}><Trash2 size={18} /></IconButton>
-                                        </Tooltip>
-                                      </Box>
-                                    </TableCell>
-                                  </>
-                                ) : activeTab === 'milk' ? (
-                                  <>
-                                    <TableCell><Typography variant="body2">{formatDateTime(row.date)}</Typography></TableCell>
-                                    <TableCell>
-                                      <Typography variant="body2" sx={{ fontWeight: 700 }}>{row.farmer?.firstName} {row.farmer?.lastName}</Typography>
-                                      <Typography variant="caption" color="text.secondary">@{row.farmer?.username}</Typography>
-                                    </TableCell>
-                                    <TableCell><Typography variant="body2" sx={{ fontWeight: 800 }}>{row.quantity} L</Typography></TableCell>
-                                    <TableCell>
-                                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                        <Typography variant="body2">{row.qualityScore.toFixed(3)}</Typography>
-                                        <Chip 
-                                          label={row.qualityScore > 0.8 ? 'Premium' : row.qualityScore > 0.5 ? 'Good' : 'Standard'} 
-                                          size="small"
-                                          variant="outlined"
-                                          sx={{ fontSize: '0.65rem', height: 20 }}
-                                        />
-                                      </Box>
-                                    </TableCell>
-                                    <TableCell><Typography variant="body2" sx={{ fontWeight: 700, color: 'success.main' }}>₹{row.totalAmount.toFixed(2)}</Typography></TableCell>
-                                    <TableCell>
-                                      <Chip 
-                                        label={row.status} 
-                                        size="small"
-                                        color={row.status === 'paid' ? 'success' : row.status === 'pending' ? 'warning' : 'default'}
-                                        sx={{ fontWeight: 600, textTransform: 'capitalize' }}
-                                      />
-                                    </TableCell>
-                                    <TableCell align="right">
-                                      {row.status === 'pending' && (
-                                        <Button size="small" variant="outlined" onClick={() => handlePayment(row._id)}>Pay Now</Button>
-                                      )}
-                                    </TableCell>
-                                  </>
-                                ) : activeTab === 'sales' ? (
-                                  <>
-                                    <TableCell><Typography variant="body2">{formatDateTime(row.date)}</Typography></TableCell>
-                                    <TableCell>
-                                      <Typography variant="body2" sx={{ fontWeight: 700 }}>{row.user?.firstName} {row.user?.lastName}</Typography>
-                                      <Typography variant="caption" color="text.secondary">{row.user?.phone}</Typography>
-                                    </TableCell>
-                                    <TableCell>
-                                      <Typography variant="body2">{row.quantity} Liters</Typography>
-                                      <Typography variant="caption" sx={{ textTransform: 'capitalize' }}>{row.deliveryType}</Typography>
-                                    </TableCell>
-                                    <TableCell><Typography variant="body2" sx={{ fontWeight: 700 }}>₹{row.totalAmount.toFixed(2)}</Typography></TableCell>
-                                    <TableCell>
-                                      <Chip 
-                                        label={row.status} 
-                                        size="small"
-                                        color={row.status === 'delivered' ? 'success' : row.status === 'pending' ? 'warning' : 'error'}
-                                        sx={{ fontWeight: 600 }}
-                                      />
-                                    </TableCell>
-                                    <TableCell align="right">
-                                      {row.status === 'pending' && (
-                                        <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1 }}>
-                                          <IconButton size="small" color="success" onClick={() => handleApprovePurchase(row._id)}><CheckCircle size={18} /></IconButton>
-                                          <IconButton size="small" color="error" onClick={() => handleCancelPurchase(row._id)}><XCircle size={18} /></IconButton>
-                                        </Box>
-                                      )}
-                                    </TableCell>
-                                  </>
-                                ) : null}
-                              </TableRow>
-                            ))}
+                            {(activeTab === 'users' ? filteredUsers :
+                              activeTab === 'farmers' ? filteredFarmers :
+                                activeTab === 'milk' ? filteredMilkRecords :
+                                  activeTab === 'sales' ? filteredPurchases : []).map((row) => (
+                                    <TableRow key={row._id} hover sx={{ '&:last-child td, &:last-child th': { border: 0 } }}>
+                                      {activeTab === 'users' || activeTab === 'farmers' ? (
+                                        <>
+                                          <TableCell>
+                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                                              <Avatar sx={{ width: 32, height: 32, bgcolor: 'primary.main', fontSize: '0.875rem' }}>
+                                                {row.firstName.charAt(0)}
+                                              </Avatar>
+                                              <Box>
+                                                <Typography variant="body2" sx={{ fontWeight: 700 }}>{row.firstName} {row.lastName}</Typography>
+                                                <Typography variant="caption" color="text.secondary">{row.email}</Typography>
+                                              </Box>
+                                            </Box>
+                                          </TableCell>
+                                          <TableCell><Typography variant="body2" sx={{ color: 'primary.main', fontWeight: 600 }}>@{row.username}</Typography></TableCell>
+                                          <TableCell>
+                                            <Typography variant="body2">{row.phone}</Typography>
+                                            <Typography variant="caption" color="text.secondary">{row.address}</Typography>
+                                          </TableCell>
+                                          {activeTab === 'farmers' && <TableCell><Typography variant="body2">{row.aadhar}</Typography></TableCell>}
+                                          <TableCell>
+                                            <Chip
+                                              label={row.isActive ? 'Active' : 'Inactive'}
+                                              size="small"
+                                              color={row.isActive ? 'success' : 'error'}
+                                              sx={{ fontWeight: 600, borderRadius: 1.5 }}
+                                            />
+                                          </TableCell>
+                                          <TableCell align="right">
+                                            <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1 }}>
+                                              <Tooltip title="Edit">
+                                                <IconButton size="small" onClick={() => openEditModal(row, activeTab.slice(0, -1))} sx={{ color: 'primary.main' }}><Edit2 size={18} /></IconButton>
+                                              </Tooltip>
+                                              <Tooltip title={row.isActive ? 'Deactivate' : 'Activate'}>
+                                                <IconButton size="small" onClick={() => toggleActive(row._id, activeTab.slice(0, -1), row.isActive)}>
+                                                  {row.isActive ? <XCircle size={18} color={theme.palette.error.main} /> : <CheckCircle size={18} color={theme.palette.success.main} />}
+                                                </IconButton>
+                                              </Tooltip>
+                                              <Tooltip title="Delete">
+                                                <IconButton size="small" onClick={() => handleDelete(row._id, activeTab.slice(0, -1))} sx={{ color: 'error.main' }}><Trash2 size={18} /></IconButton>
+                                              </Tooltip>
+                                            </Box>
+                                          </TableCell>
+                                        </>
+                                      ) : activeTab === 'milk' ? (
+                                        <>
+                                          <TableCell><Typography variant="body2">{formatDateTime(row.date)}</Typography></TableCell>
+                                          <TableCell>
+                                            <Typography variant="body2" sx={{ fontWeight: 700 }}>{row.farmer?.firstName} {row.farmer?.lastName}</Typography>
+                                            <Typography variant="caption" color="text.secondary">@{row.farmer?.username}</Typography>
+                                          </TableCell>
+                                          <TableCell><Typography variant="body2" sx={{ fontWeight: 800 }}>{row.quantity} L</Typography></TableCell>
+                                          <TableCell>
+                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                              <Typography variant="body2">{row.qualityScore.toFixed(3)}</Typography>
+                                              <Chip
+                                                label={row.qualityScore > 0.8 ? 'Premium' : row.qualityScore > 0.5 ? 'Good' : 'Standard'}
+                                                size="small"
+                                                variant="outlined"
+                                                sx={{ fontSize: '0.65rem', height: 20 }}
+                                              />
+                                            </Box>
+                                          </TableCell>
+                                          <TableCell><Typography variant="body2" sx={{ fontWeight: 700, color: 'success.main' }}>₹{row.totalAmount.toFixed(2)}</Typography></TableCell>
+                                          <TableCell>
+                                            <Chip
+                                              label={row.status}
+                                              size="small"
+                                              color={row.status === 'paid' ? 'success' : row.status === 'pending' ? 'warning' : 'default'}
+                                              sx={{ fontWeight: 600, textTransform: 'capitalize' }}
+                                            />
+                                          </TableCell>
+                                          <TableCell align="right">
+                                            {row.status === 'pending' && (
+                                              <Button size="small" variant="outlined" onClick={() => handlePayment(row._id)}>Pay Now</Button>
+                                            )}
+                                          </TableCell>
+                                        </>
+                                      ) : activeTab === 'sales' ? (
+                                        <>
+                                          <TableCell><Typography variant="body2">{formatDateTime(row.date)}</Typography></TableCell>
+                                          <TableCell>
+                                            <Typography variant="body2" sx={{ fontWeight: 700 }}>{row.user?.firstName} {row.user?.lastName}</Typography>
+                                            <Typography variant="caption" color="text.secondary">{row.user?.phone}</Typography>
+                                          </TableCell>
+                                          <TableCell>
+                                            <Typography variant="body2">{row.quantity} Liters</Typography>
+                                            <Typography variant="caption" sx={{ textTransform: 'capitalize' }}>{row.deliveryType}</Typography>
+                                          </TableCell>
+                                          <TableCell><Typography variant="body2" sx={{ fontWeight: 700 }}>₹{row.totalAmount.toFixed(2)}</Typography></TableCell>
+                                          <TableCell>
+                                            <Chip
+                                              label={row.status}
+                                              size="small"
+                                              color={row.status === 'delivered' ? 'success' : row.status === 'pending' ? 'warning' : 'error'}
+                                              sx={{ fontWeight: 600 }}
+                                            />
+                                          </TableCell>
+                                          <TableCell align="right">
+                                            {row.status === 'pending' && (
+                                              <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1 }}>
+                                                <IconButton size="small" color="success" onClick={() => handleApprovePurchase(row._id)}><CheckCircle size={18} /></IconButton>
+                                                <IconButton size="small" color="error" onClick={() => handleCancelPurchase(row._id)}><XCircle size={18} /></IconButton>
+                                              </Box>
+                                            )}
+                                          </TableCell>
+                                        </>
+                                      ) : null}
+                                    </TableRow>
+                                  ))}
                           </TableBody>
                         </Table>
                       </TableContainer>
                     )}
-                    {((activeTab === 'users' ? filteredUsers : 
-                        activeTab === 'farmers' ? filteredFarmers : 
-                        activeTab === 'milk' ? filteredMilkRecords : 
-                        activeTab === 'sales' ? filteredPurchases : []).length === 0 && !loading) && (
-                      <Box sx={{ p: 8, textAlign: 'center' }}>
-                        <Typography color="text.secondary">No records found matching your criteria</Typography>
-                      </Box>
-                    )}
+                    {((activeTab === 'users' ? filteredUsers :
+                      activeTab === 'farmers' ? filteredFarmers :
+                        activeTab === 'milk' ? filteredMilkRecords :
+                          activeTab === 'sales' ? filteredPurchases : []).length === 0 && !loading) && (
+                        <Box sx={{ p: 8, textAlign: 'center' }}>
+                          <Typography color="text.secondary">No records found matching your criteria</Typography>
+                        </Box>
+                      )}
                   </Box>
                 </Paper>
               )}
@@ -1493,8 +1493,8 @@ const AdminDashboard = () => {
       </Box>
 
       {/* MUI Dialog Modal */}
-      <Dialog 
-        open={showModal} 
+      <Dialog
+        open={showModal}
         onClose={() => setShowModal(false)}
         maxWidth="sm"
         fullWidth
@@ -1517,9 +1517,9 @@ const AdminDashboard = () => {
               <Grid item xs={12}><TextField fullWidth label="Address" multiline rows={2} value={formData.address} onChange={(e) => setFormData({ ...formData, address: e.target.value })} required /></Grid>
               {modalType === 'add' && <Grid item xs={12}><TextField fullWidth label="Password" type="password" value={formData.password} onChange={(e) => setFormData({ ...formData, password: e.target.value })} required minLength={6} /></Grid>}
               <Grid item xs={12}>
-                <FormControlLabel 
-                  control={<Checkbox checked={formData.isActive} onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })} />} 
-                  label="Active Account" 
+                <FormControlLabel
+                  control={<Checkbox checked={formData.isActive} onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })} />}
+                  label="Active Account"
                 />
               </Grid>
             </Grid>
