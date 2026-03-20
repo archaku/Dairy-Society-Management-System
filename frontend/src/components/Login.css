@@ -4,7 +4,10 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: radial-gradient(circle at top left, #1a5d1a, #0d2e0d);
+  background-image: linear-gradient(rgba(0,0,0,0.3), rgba(0,0,0,0.3)), url('/images/dairy_background.png');
+  background-size: cover;
+  background-position: center;
+  background-attachment: fixed;
   padding: 20px;
   position: relative;
   overflow: hidden;

@@ -14,7 +14,6 @@ const Signup = () => {
     lastName: '',
     phone: '',
     address: '',
-    address: '',
     aadhar: '',
     role: 'user',
     otp: ''
