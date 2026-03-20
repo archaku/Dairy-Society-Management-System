@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { FaUser, FaLock, FaCheese, FaSpinner } from 'react-icons/fa';
+import { FaUser, FaLock, FaSpinner } from 'react-icons/fa';
+import { Milk } from 'lucide-react';
 import { motion } from 'framer-motion';
 import './Login.css';
 
@@ -75,7 +76,7 @@ const Login = () => {
             whileHover={{ rotate: 10, scale: 1.1 }}
             whileTap={{ scale: 0.9 }}
           >
-            <FaCheese className="logo-icon" />
+            <Milk className="logo-icon" size={38} color="white" />
           </motion.div>
           <h1>Dairy Society Management</h1>
           <p className="subtitle">Areeparambu, Cherthala</p>

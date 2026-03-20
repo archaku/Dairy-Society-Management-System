@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { FaUser, FaLock, FaEnvelope, FaPhone, FaIdCard, FaUserTag, FaSpinner, FaMapMarkerAlt } from 'react-icons/fa';
-import './Signup.css';
+import { Milk } from 'lucide-react';
+import { motion } from 'framer-motion';
 
 const Signup = () => {
   const [formData, setFormData] = useState({
@@ -133,6 +134,25 @@ const Signup = () => {
     <div className="signup-container">
       <div className="signup-card">
         <div className="signup-header">
+          <motion.div 
+            className="logo"
+            whileHover={{ rotate: 10, scale: 1.1 }}
+            whileTap={{ scale: 0.9 }}
+            style={{ 
+              width: '70px', 
+              height: '70px', 
+              margin: '0 auto 20px', 
+              background: 'linear-gradient(135deg, #1a5d1a 0%, #348f34 100%)',
+              borderRadius: '20px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              boxShadow: '0 10px 25px rgba(26, 93, 26, 0.3)',
+              transform: 'rotate(-5deg)'
+            }}
+          >
+            <Milk size={34} color="white" />
+          </motion.div>
           <h1>Create Account</h1>
           <p className="subtitle">Join Dairy Society Management System</p>
         </div>
