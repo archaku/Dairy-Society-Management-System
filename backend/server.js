@@ -40,6 +40,7 @@ app.use('/api/direct-milk', require('./routes/directMilkRoutes'));
 app.use('/api/society', require('./routes/societySalesRoutes'));
 app.use('/api/analytics', require('./routes/analyticsRoutes'));
 app.use('/api/payment', require('./routes/paymentRoutes'));
+app.use('/api/subscriptions', require('./routes/subscriptionRoutes'));
 
 // Serve static files from uploads directory
 const path = require('path');

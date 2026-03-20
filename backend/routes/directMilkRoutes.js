@@ -45,8 +45,12 @@ const verifyUser = async (req, res, next) => {
 router.post('/availability', verifyFarmer, async (req, res) => {
     try {
         console.log(`Updating availability for farmer: ${req.farmerId}`);
-        const { availableQuantity, pricePerLiter } = req.body;
+        const { availableQuantity, pricePerLiter, shift } = req.body;
         console.log('Request body:', req.body);
+
+        if (!shift) {
+            return res.status(400).json({ success: false, message: 'Shift is required' });
+        }
 
         const today = new Date();
         today.setHours(0, 0, 0, 0);
@@ -54,7 +58,8 @@ router.post('/availability', verifyFarmer, async (req, res) => {
 
         let availability = await FarmerAvailability.findOne({
             farmer: req.farmerId,
-            date: today
+            date: today,
+            shift
         });
 
         if (availability) {
@@ -63,12 +68,13 @@ router.post('/availability', verifyFarmer, async (req, res) => {
             availability.pricePerLiter = pricePerLiter;
             await availability.save();
         } else {
-            console.log('Creating new availability record for today');
+            console.log('Creating new availability record for today and shift:', shift);
             availability = new FarmerAvailability({
                 farmer: req.farmerId,
                 availableQuantity,
                 pricePerLiter,
-                date: today
+                date: today,
+                shift
             });
             await availability.save();
         }
@@ -87,6 +93,8 @@ router.get('/farmers', async (req, res) => {
         const today = new Date();
         today.setHours(0, 0, 0, 0);
 
+        const MilkSubscription = require('../models/MilkSubscription');
+
         let availabilities = await FarmerAvailability.find({
             date: { $gte: today },
             availableQuantity: { $gt: 0 }
@@ -95,7 +103,29 @@ router.get('/farmers', async (req, res) => {
         // Filter out any availabilities where the farmer no longer exists
         availabilities = availabilities.filter(avail => avail.farmer !== null);
 
-        res.json({ success: true, availabilities });
+        const adjustedAvailabilities = [];
+        for (let avail of availabilities) {
+            const activeSubs = await MilkSubscription.find({
+                farmer: avail.farmer._id,
+                shift: avail.shift,
+                status: 'active',
+                startDate: { $lte: new Date(today.getTime() + 86400000 - 1) },
+                endDate: { $gte: today }
+            });
+            
+            const subscribedQty = activeSubs.reduce((sum, sub) => sum + sub.quantityPerDay, 0);
+            const remainingQty = avail.availableQuantity - subscribedQty;
+
+            if (remainingQty > 0) {
+                adjustedAvailabilities.push({
+                    ...avail.toObject(),
+                    availableQuantity: remainingQty,
+                    originalQuantity: avail.availableQuantity
+                });
+            }
+        }
+
+        res.json({ success: true, availabilities: adjustedAvailabilities });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
     }
@@ -105,20 +135,44 @@ router.get('/farmers', async (req, res) => {
 // @desc    User initiates a purchase request
 router.post('/request', verifyUser, async (req, res) => {
     try {
-        const { farmerId, quantity } = req.body;
+        const { farmerId, quantity, shift } = req.body;
+
+        if (!shift) {
+            return res.status(400).json({ success: false, message: 'Shift is required' });
+        }
 
         const today = new Date();
         today.setHours(0, 0, 0, 0);
 
         const availability = await FarmerAvailability.findOne({
             farmer: farmerId,
-            date: { $gte: today }
+            date: { $gte: today },
+            shift
         });
 
-        if (!availability || availability.availableQuantity < quantity) {
+        if (!availability) {
             return res.status(400).json({
                 success: false,
-                message: 'Insufficient milk available from this farmer today.'
+                message: 'No availability found from this farmer today.'
+            });
+        }
+
+        const MilkSubscription = require('../models/MilkSubscription');
+        const activeSubs = await MilkSubscription.find({
+            farmer: farmerId,
+            shift,
+            status: 'active',
+            startDate: { $lte: new Date(today.getTime() + 86400000 - 1) },
+            endDate: { $gte: today }
+        });
+        
+        const subscribedQty = activeSubs.reduce((sum, sub) => sum + sub.quantityPerDay, 0);
+        const remainingQty = availability.availableQuantity - subscribedQty;
+
+        if (remainingQty < quantity) {
+            return res.status(400).json({
+                success: false,
+                message: `Insufficient milk available. Pre-booked subscriptions reserved stock leaving only ${remainingQty.toFixed(1)}L open for request.`
             });
         }
 
@@ -133,7 +187,8 @@ router.post('/request', verifyUser, async (req, res) => {
             totalAmount,
             status: 'pending',
             paymentStatus: req.body.paymentId ? 'Completed' : 'pending',
-            paymentId: req.body.paymentId
+            paymentId: req.body.paymentId,
+            shift
         });
 
         await newSale.save();
@@ -149,9 +204,21 @@ router.post('/request', verifyUser, async (req, res) => {
 // @desc    User views their requests
 router.get('/user/requests', verifyUser, async (req, res) => {
     try {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
         let requests = await DirectMilkSale.find({ user: req.userId })
             .populate('farmer', 'firstName lastName username phone')
             .sort({ createdAt: -1 });
+
+        // Lazy Expiration
+        for (let req of requests) {
+            if (req.status === 'pending' && new Date(req.createdAt) < today) {
+                req.status = 'cancelled';
+                req.remark = 'Auto-cancelled due to 24-hour expiry rule.';
+                await req.save();
+            }
+        }
 
         // Filter out any requests where the farmer no longer exists
         requests = requests.filter(req => req.farmer !== null);
@@ -166,9 +233,21 @@ router.get('/user/requests', verifyUser, async (req, res) => {
 // @desc    Farmer views requests received from users
 router.get('/farmer/requests', verifyFarmer, async (req, res) => {
     try {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
         let requests = await DirectMilkSale.find({ farmer: req.farmerId })
             .populate('user', 'firstName lastName username phone address')
             .sort({ createdAt: -1 });
+
+        // Lazy Expiration
+        for (let req of requests) {
+            if (req.status === 'pending' && new Date(req.createdAt) < today) {
+                req.status = 'cancelled';
+                req.remark = 'Auto-cancelled due to 24-hour expiry rule.';
+                await req.save();
+            }
+        }
 
         // Filter out any requests where the user no longer exists
         requests = requests.filter(req => req.user !== null);
@@ -198,7 +277,8 @@ router.put('/farmer/action/:id', verifyFarmer, async (req, res) => {
             today.setHours(0, 0, 0, 0);
             const availability = await FarmerAvailability.findOne({
                 farmer: sale.farmer,
-                date: { $gte: today }
+                date: { $gte: today },
+                shift: sale.shift
             });
 
             if (availability) {
@@ -274,6 +354,36 @@ router.get('/farmer/:farmerId/reviews', async (req, res) => {
             .sort({ createdAt: -1 });
 
         res.json({ success: true, reviews });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+// @route   POST /api/direct-milk/subscription-settings
+// @desc    Update farmer's subscription offering settings
+router.post('/subscription-settings', verifyFarmer, async (req, res) => {
+    try {
+        const { offersSubscription, subscriptionMilkRate, subscriptionDeliveryRange } = req.body;
+        
+        await Farmer.findByIdAndUpdate(req.farmerId, { 
+            offersSubscription, 
+            subscriptionMilkRate: Number(subscriptionMilkRate) || 0, 
+            subscriptionDeliveryRange: Number(subscriptionDeliveryRange) || 0 
+        });
+        res.json({ success: true, message: 'Subscription settings updated successfully' });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+// @route   GET /api/direct-milk/subscription-farmers
+// @desc    Get all farmers who offer subscriptions
+router.get('/subscription-farmers', async (req, res) => {
+    try {
+        const farmers = await Farmer.find({ offersSubscription: true, isActive: true })
+            .select('firstName lastName address phone avgRating totalReviews subscriptionMilkRate subscriptionDeliveryRange');
+            
+        res.json({ success: true, farmers });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
     }

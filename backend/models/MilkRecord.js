@@ -47,6 +47,11 @@ const milkRecordSchema = new mongoose.Schema({
         enum: ['pending', 'paid'],
         default: 'pending'
     },
+    shift: {
+        type: String,
+        enum: ['Morning', 'Evening'],
+        required: true
+    },
     paymentId: {
         type: String
     },

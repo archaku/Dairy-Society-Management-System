@@ -42,6 +42,11 @@ const milkPurchaseSchema = new mongoose.Schema({
         enum: ['pending', 'delivered', 'cancelled'],
         default: 'pending'
     },
+    shift: {
+        type: String,
+        enum: ['Morning', 'Evening'],
+        required: true
+    },
     paymentStatus: {
         type: String,
         enum: ['pending', 'Completed', 'Failed'],

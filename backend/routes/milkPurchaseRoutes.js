@@ -4,6 +4,7 @@ const MilkPurchase = require('../models/MilkPurchase');
 const MilkRecord = require('../models/MilkRecord');
 const SocietyInventory = require('../models/SocietyInventory');
 const jwt = require('jsonwebtoken');
+const { getAvailableMilkForShift } = require('../utils/inventory');
 
 // Middleware to verify user (regular user)
 const verifyUser = async (req, res, next) => {
@@ -47,8 +48,8 @@ const verifyAdmin = async (req, res, next) => {
 // @desc    Get available milk for today and average price
 router.get('/available', async (req, res) => {
     try {
-        const inventory = await SocietyInventory.findOne();
-        const available = inventory ? inventory.totalStock : 0;
+        const morningAvailable = await getAvailableMilkForShift('Morning');
+        const eveningAvailable = await getAvailableMilkForShift('Evening');
 
         // Calculate average rate from today's collections
         const today = new Date();
@@ -60,7 +61,8 @@ router.get('/available', async (req, res) => {
 
         res.json({
             success: true,
-            available,
+            morningAvailable,
+            eveningAvailable,
             rate: Math.round(avgRate * 100) / 100,
             deliveryCharge: 10
         });
@@ -73,9 +75,12 @@ router.get('/available', async (req, res) => {
 // @desc    Purchase milk
 router.post('/', verifyUser, async (req, res) => {
     try {
-        const { quantity, deliveryType, distance } = req.body;
+        const { quantity, deliveryType, distance, shift } = req.body;
         if (!quantity || quantity <= 0) {
             return res.status(400).json({ success: false, message: 'Invalid quantity' });
+        }
+        if (!shift) {
+            return res.status(400).json({ success: false, message: 'Shift is required' });
         }
 
         // Calculate current average rate
@@ -86,12 +91,12 @@ router.post('/', verifyUser, async (req, res) => {
         const totalQty = milkRecords.reduce((sum, rec) => sum + (rec.quantity || 0), 0);
         const avgRate = totalQty > 0 ? (totalAmt / totalQty) : 45;
 
-        // Check availability from Society Inventory
-        const inventory = await SocietyInventory.findOne();
-        if (!inventory || inventory.totalStock < quantity) {
+        // Check availability strictly for the requested shift today
+        const available = await getAvailableMilkForShift(shift);
+        if (available < quantity) {
             return res.status(400).json({
                 success: false,
-                message: `Only ${(inventory?.totalStock || 0).toFixed(2)}L available in society. Please adjust your quantity.`
+                message: `Only ${available.toFixed(2)}L available in ${shift} shift today. Please adjust your quantity.`
             });
         }
 
@@ -108,21 +113,11 @@ router.post('/', verifyUser, async (req, res) => {
             totalAmount,
             status: 'pending',
             paymentStatus: req.body.paymentId ? 'Completed' : 'pending',
-            paymentId: req.body.paymentId
+            paymentId: req.body.paymentId,
+            shift
         });
 
         await newPurchase.save();
-
-        // Decrement Society Inventory (Atomic)
-        console.log(`Decreasing Society Inventory: subtracting ${quantity}L`);
-        await SocietyInventory.findOneAndUpdate(
-            {},
-            {
-                $inc: { totalStock: -parseFloat(quantity) },
-                $set: { lastUpdated: new Date() }
-            },
-            { upsert: true, new: true, setDefaultsOnInsert: true }
-        );
 
         res.status(201).json({ success: true, purchase: newPurchase });
     } catch (error) {
@@ -176,17 +171,6 @@ router.put('/admin/cancel/:id', verifyAdmin, async (req, res) => {
         const oldStatus = purchase.status;
         purchase.status = 'cancelled';
         await purchase.save();
-
-        // Increment Society Inventory back
-        console.log(`Purchase cancelled. Restoring ${purchase.quantity}L to inventory.`);
-        await SocietyInventory.findOneAndUpdate(
-            {},
-            {
-                $inc: { totalStock: parseFloat(purchase.quantity) },
-                $set: { lastUpdated: new Date() }
-            },
-            { upsert: true, new: true, setDefaultsOnInsert: true }
-        );
 
         res.json({ success: true, purchase });
     } catch (error) {

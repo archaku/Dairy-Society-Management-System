@@ -82,7 +82,8 @@ const AdminDashboard = () => {
     snf: '8.3',
     lactose: '4.5',
     protein: '3.0',
-    ph: '6.6'
+    ph: '6.6',
+    shift: 'Morning'
   });
   const [pricePreview, setPricePreview] = useState(null);
   const [qualityIndicator, setQualityIndicator] = useState(null);
@@ -91,7 +92,8 @@ const AdminDashboard = () => {
   const [orgSaleFormData, setOrgSaleFormData] = useState({
     organizationName: '',
     quantity: '',
-    pricePerLiter: ''
+    pricePerLiter: '',
+    shift: 'Morning'
   });
   const [analyticsData, setAnalyticsData] = useState({
     trends: [],
@@ -346,8 +348,10 @@ const AdminDashboard = () => {
   const handleOrgSaleSubmit = async (e) => {
     e.preventDefault();
     const qty = parseFloat(orgSaleFormData.quantity);
-    if (qty > societyInventory.totalStock) {
-      alert(`Insufficient stock! You only have ${societyInventory.totalStock.toFixed(2)}L available in society inventory. Please collect more milk first.`);
+    const shiftAvail = orgSaleFormData.shift === 'Morning' ? societyInventory.morningAvailable : societyInventory.eveningAvailable;
+    
+    if (qty > (shiftAvail || 0)) {
+      alert(`Insufficient stock! You only have ${(shiftAvail || 0).toFixed(2)}L available in the ${orgSaleFormData.shift} shift.`);
       return;
     }
 
@@ -355,7 +359,7 @@ const AdminDashboard = () => {
       const config = { headers: { Authorization: `Bearer ${token}` } };
       await axios.post('http://localhost:5000/api/society/sale', orgSaleFormData, config);
       alert('Sale recorded successfully!');
-      setOrgSaleFormData({ organizationName: '', quantity: '', pricePerLiter: '' });
+      setOrgSaleFormData({ organizationName: '', quantity: '', pricePerLiter: '', shift: 'Morning' });
       fetchData();
     } catch (error) {
       console.error('Society Sale Error:', error.message);
@@ -480,7 +484,8 @@ const AdminDashboard = () => {
         snf: '8.3',
         lactose: '4.5',
         protein: '3.0',
-        ph: '6.6'
+        ph: '6.6',
+        shift: 'Morning'
       });
       setPricePreview(null);
       setActiveTab('milk');
@@ -973,8 +978,8 @@ const AdminDashboard = () => {
                           </Grid>
                         ))}
 
-                        {/* Row 4: pH Level (Centered) */}
-                        <Grid item xs={12} md={6} sx={{ mx: 'auto' }}>
+                        {/* Row 4: pH Level and Shift */}
+                        <Grid item xs={12} md={6}>
                           <Box sx={{ mb: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center', minHeight: '24px' }}>
                             <Typography variant="subtitle1" sx={{ fontWeight: 700, color: 'text.primary' }}>
                               pH Level *
@@ -1005,6 +1010,34 @@ const AdminDashboard = () => {
                             {generateOptions(PARAM_RANGES.ph.min, PARAM_RANGES.ph.max, PARAM_RANGES.ph.step).map(val => (
                               <option key={val} value={val}>{val}</option>
                             ))}
+                          </TextField>
+                        </Grid>
+
+                        <Grid item xs={12} md={6}>
+                          <Box sx={{ mb: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center', minHeight: '24px' }}>
+                            <Typography variant="subtitle1" sx={{ fontWeight: 700, color: 'text.primary' }}>Shift *</Typography>
+                          </Box>
+                          <TextField
+                            select
+                            fullWidth
+                            name="shift"
+                            value={milkFormData.shift}
+                            onChange={handleMilkFormChange}
+                            required
+                            SelectProps={{ native: true }}
+                            sx={{
+                              '& .MuiOutlinedInput-root': {
+                                borderRadius: '50px',
+                                bgcolor: '#f8fafc',
+                                height: 64,
+                                fontSize: '1.1rem',
+                                px: 2,
+                                '& fieldset': { borderColor: '#e2e8f0' }
+                              }
+                            }}
+                          >
+                            <option value="Morning">Morning</option>
+                            <option value="Evening">Evening</option>
                           </TextField>
                         </Grid>
 
@@ -1213,13 +1246,23 @@ const AdminDashboard = () => {
                   <Paper sx={{ p: 4, mb: 4, borderRadius: 4, background: 'linear-gradient(135deg, #1a5d1a 0%, #348f34 100%)', color: 'white' }}>
                     <Grid container alignItems="center">
                       <Grid item xs={12} md={7}>
-                        <Typography variant="h6" sx={{ opacity: 0.9, mb: 1 }}>Live Society Inventory</Typography>
+                        <Typography variant="h6" sx={{ opacity: 0.9, mb: 1 }}>Live Total Inventory</Typography>
                         <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1 }}>
-                          <Typography variant="h2" sx={{ fontWeight: 900 }}>{societyInventory.totalStock.toFixed(2)}</Typography>
+                          <Typography variant="h2" sx={{ fontWeight: 900 }}>{societyInventory.totalStock?.toFixed(2) || '0.00'}</Typography>
                           <Typography variant="h5" sx={{ fontWeight: 700, opacity: 0.8 }}>Liters</Typography>
                         </Box>
+                        <Box sx={{ display: 'flex', gap: 3, mt: 2 }}>
+                          <Box>
+                            <Typography variant="caption" sx={{ opacity: 0.8, display: 'block', fontWeight: 600 }}>Morning Shift</Typography>
+                            <Typography variant="h5" sx={{ fontWeight: 800 }}>{(societyInventory.morningAvailable || 0).toFixed(2)} L</Typography>
+                          </Box>
+                          <Box>
+                            <Typography variant="caption" sx={{ opacity: 0.8, display: 'block', fontWeight: 600 }}>Evening Shift</Typography>
+                            <Typography variant="h5" sx={{ fontWeight: 800 }}>{(societyInventory.eveningAvailable || 0).toFixed(2)} L</Typography>
+                          </Box>
+                        </Box>
                         <Typography variant="body2" sx={{ opacity: 0.8, mt: 2, maxWidth: 400 }}>
-                          Pool of mixed milk collected from all farmers. This can be sold in bulk to schools, organizations, or Milma.
+                          Pool of mixed milk collected from all farmers today. This can be sold in bulk to schools, organizations, or Milma.
                         </Typography>
                       </Grid>
                       <Grid item xs={12} md={5} sx={{ display: 'flex', justifyContent: { md: 'flex-end' }, mt: { xs: 4, md: 0 } }}>
@@ -1231,6 +1274,10 @@ const AdminDashboard = () => {
                                 <TextField size="small" placeholder="Organization Name" value={orgSaleFormData.organizationName} onChange={(e) => setOrgSaleFormData({ ...orgSaleFormData, organizationName: e.target.value })} required />
                                 <TextField size="small" label="Quantity (L)" type="number" value={orgSaleFormData.quantity} onChange={(e) => setOrgSaleFormData({ ...orgSaleFormData, quantity: e.target.value })} required />
                                 <TextField size="small" label="Rate / Liter" type="number" value={orgSaleFormData.pricePerLiter} onChange={(e) => setOrgSaleFormData({ ...orgSaleFormData, pricePerLiter: e.target.value })} required />
+                                <TextField select size="small" label="Shift" SelectProps={{ native: true }} value={orgSaleFormData.shift} onChange={(e) => setOrgSaleFormData({ ...orgSaleFormData, shift: e.target.value })} required>
+                                  <option value="Morning">Morning</option>
+                                  <option value="Evening">Evening</option>
+                                </TextField>
                                 <Button type="submit" variant="contained" fullWidth>Record Sale</Button>
                               </Box>
                             </form>
@@ -1258,7 +1305,10 @@ const AdminDashboard = () => {
                         <TableBody>
                           {sortData(orgSalesHistory, sortConfig).map(sale => (
                             <TableRow key={sale._id}>
-                              <TableCell>{formatDateTime(sale.date)}</TableCell>
+                              <TableCell>
+                                {formatDateTime(sale.date)}
+                                <Typography variant="caption" display="block" color="text.secondary">Shift: {sale.shift || 'N/A'}</Typography>
+                              </TableCell>
                               <TableCell sx={{ fontWeight: 700 }}>{sale.organizationName}</TableCell>
                               <TableCell>{sale.quantity} L</TableCell>
                               <TableCell>₹{sale.pricePerLiter}</TableCell>
@@ -1396,7 +1446,10 @@ const AdminDashboard = () => {
                             <TableBody>
                               {sortData(getFilteredAnalysisData(purchases.filter(p => p.status === 'delivered')), sortConfig).map(p => (
                                 <TableRow key={p._id} hover>
-                                  <TableCell>{new Date(p.date || p.createdAt).toLocaleDateString()}</TableCell>
+                                  <TableCell>
+                                    {new Date(p.date || p.createdAt).toLocaleDateString()}
+                                    <Typography variant="caption" display="block" color="text.secondary">{p.shift || 'N/A'}</Typography>
+                                  </TableCell>
                                   <TableCell>{p.user?.firstName || 'Unknown'}</TableCell>
                                   <TableCell align="right" sx={{ fontWeight: 600 }}>{p.quantity}</TableCell>
                                 </TableRow>
@@ -1426,7 +1479,10 @@ const AdminDashboard = () => {
                             <TableBody>
                               {sortData(getFilteredAnalysisData(milkRecords.filter(r => r.status && r.status !== 'rejected')), sortConfig).map(r => (
                                 <TableRow key={r._id} hover>
-                                  <TableCell>{new Date(r.date).toLocaleDateString()}</TableCell>
+                                  <TableCell>
+                                    {new Date(r.date).toLocaleDateString()}
+                                    <Typography variant="caption" display="block" color="text.secondary">{r.shift || 'N/A'}</Typography>
+                                  </TableCell>
                                   <TableCell>{r.farmer?.firstName || 'Unknown'}</TableCell>
                                   <TableCell align="right" sx={{ fontWeight: 600 }}>{r.quantity}</TableCell>
                                 </TableRow>
@@ -1456,7 +1512,10 @@ const AdminDashboard = () => {
                             <TableBody>
                               {sortData(getFilteredAnalysisData(orgSalesHistory), sortConfig).map(s => (
                                 <TableRow key={s._id} hover>
-                                  <TableCell>{new Date(s.date).toLocaleDateString()}</TableCell>
+                                  <TableCell>
+                                    {new Date(s.date).toLocaleDateString()}
+                                    <Typography variant="caption" display="block" color="text.secondary">{s.shift || 'N/A'}</Typography>
+                                  </TableCell>
                                   <TableCell>{s.organizationName}</TableCell>
                                   <TableCell align="right" sx={{ fontWeight: 600 }}>{s.quantity}</TableCell>
                                 </TableRow>
@@ -1617,7 +1676,10 @@ const AdminDashboard = () => {
                                         </>
                                       ) : activeTab === 'milk' ? (
                                         <>
-                                          <TableCell><Typography variant="body2">{formatDateTime(row.date)}</Typography></TableCell>
+                                          <TableCell>
+                                            <Typography variant="body2">{formatDateTime(row.date)}</Typography>
+                                            <Typography variant="caption" display="block" color="text.secondary">Shift: {row.shift || 'N/A'}</Typography>
+                                          </TableCell>
                                           <TableCell>
                                             <Typography variant="body2" sx={{ fontWeight: 700 }}>{row.farmer?.firstName} {row.farmer?.lastName}</Typography>
                                             <Typography variant="caption" color="text.secondary">@{row.farmer?.username}</Typography>
@@ -1625,7 +1687,6 @@ const AdminDashboard = () => {
                                           <TableCell><Typography variant="body2" sx={{ fontWeight: 800 }}>{row.quantity} L</Typography></TableCell>
                                           <TableCell>
                                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                              <Typography variant="body2">{row.qualityScore.toFixed(3)}</Typography>
                                               <Chip
                                                 label={row.qualityScore > 0.8 ? 'Premium' : row.qualityScore > 0.5 ? 'Good' : 'Standard'}
                                                 size="small"
@@ -1651,7 +1712,10 @@ const AdminDashboard = () => {
                                         </>
                                       ) : activeTab === 'sales' ? (
                                         <>
-                                          <TableCell><Typography variant="body2">{formatDateTime(row.date)}</Typography></TableCell>
+                                          <TableCell>
+                                            <Typography variant="body2">{formatDateTime(row.date)}</Typography>
+                                            <Typography variant="caption" display="block" color="text.secondary">Shift: {row.shift || 'N/A'}</Typography>
+                                          </TableCell>
                                           <TableCell>
                                             <Typography variant="body2" sx={{ fontWeight: 700 }}>{row.user?.firstName} {row.user?.lastName}</Typography>
                                             <Typography variant="caption" color="text.secondary">{row.user?.phone}</Typography>

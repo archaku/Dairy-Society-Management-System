@@ -4,6 +4,7 @@ const OrganizationSale = require('../models/OrganizationSale');
 const SocietyInventory = require('../models/SocietyInventory');
 const Admin = require('../models/Admin');
 const jwt = require('jsonwebtoken');
+const { getAvailableMilkForShift } = require('../utils/inventory');
 
 // Middleware to verify admin
 const verifyAdmin = async (req, res, next) => {
@@ -22,11 +23,13 @@ const verifyAdmin = async (req, res, next) => {
 };
 
 // @route   GET /api/society/inventory
-// @desc    Get current society milk inventory
+// @desc    Get dynamic society milk inventory splits
 router.get('/inventory', verifyAdmin, async (req, res) => {
     try {
-        const inventory = await SocietyInventory.findOne();
-        res.json({ success: true, inventory: inventory || { totalStock: 0 } });
+        const morningAvailable = await getAvailableMilkForShift('Morning');
+        const eveningAvailable = await getAvailableMilkForShift('Evening');
+        
+        res.json({ success: true, inventory: { totalStock: morningAvailable + eveningAvailable, morningAvailable, eveningAvailable } });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
     }
@@ -36,11 +39,15 @@ router.get('/inventory', verifyAdmin, async (req, res) => {
 // @desc    Record a sale to an organization (e.g. Milma, School)
 router.post('/sale', verifyAdmin, async (req, res) => {
     try {
-        const { organizationName, quantity, pricePerLiter } = req.body;
+        const { organizationName, quantity, pricePerLiter, shift } = req.body;
 
-        const inventory = await SocietyInventory.findOne();
-        if (!inventory || inventory.totalStock < quantity) {
-            return res.status(400).json({ success: false, message: 'Insufficient stock in society inventory' });
+        if (!shift) {
+            return res.status(400).json({ success: false, message: 'Shift is required' });
+        }
+
+        const available = await getAvailableMilkForShift(shift);
+        if (available < quantity) {
+            return res.status(400).json({ success: false, message: `Insufficient stock. Only ${available.toFixed(2)}L available in ${shift} shift today.` });
         }
 
         const totalAmount = parseFloat(quantity) * parseFloat(pricePerLiter);
@@ -49,15 +56,11 @@ router.post('/sale', verifyAdmin, async (req, res) => {
             organizationName,
             quantity: parseFloat(quantity),
             pricePerLiter: parseFloat(pricePerLiter),
-            totalAmount
+            totalAmount,
+            shift
         });
 
         await sale.save();
-
-        // Decrement inventory
-        inventory.totalStock -= parseFloat(quantity);
-        inventory.lastUpdated = new Date();
-        await inventory.save();
 
         res.status(201).json({ success: true, sale });
     } catch (error) {

@@ -1,6 +1,6 @@
 const mongoose = require('mongoose');
 
-const directMilkSaleSchema = new mongoose.Schema({
+const milkSubscriptionSchema = new mongoose.Schema({
     user: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
@@ -11,12 +11,29 @@ const directMilkSaleSchema = new mongoose.Schema({
         ref: 'Farmer',
         required: true
     },
-    quantity: {
+    quantityPerDay: {
         type: Number,
         required: true,
         min: 0.1
     },
+    startDate: {
+        type: Date,
+        required: true
+    },
+    endDate: {
+        type: Date,
+        required: true
+    },
+    shift: {
+        type: String,
+        enum: ['Morning', 'Evening'],
+        required: true
+    },
     pricePerLiter: {
+        type: Number,
+        required: true
+    },
+    deliveryCharge: {
         type: Number,
         required: true
     },
@@ -24,47 +41,30 @@ const directMilkSaleSchema = new mongoose.Schema({
         type: Number,
         required: true
     },
-    status: {
+    deliveryLocation: {
         type: String,
-        enum: ['pending', 'approved', 'rejected', 'delivered', 'cancelled'],
-        default: 'pending'
-    },
-    shift: {
-        type: String,
-        enum: ['Morning', 'Evening'],
         required: true
     },
-    remark: {
-        type: String,
-        trim: true
-    },
-    feedback: {
-        type: String,
-        trim: true
-    },
-    rating: {
+    distance: {
         type: Number,
-        min: 1,
-        max: 5
+        required: true
     },
     paymentStatus: {
         type: String,
         enum: ['pending', 'Completed', 'Failed'],
         default: 'pending'
     },
-    invoicePath: {
-        type: String
-    },
     paymentId: {
         type: String
     },
-    date: {
-        type: Date,
-        default: Date.now
+    status: {
+        type: String,
+        enum: ['pending', 'active', 'completed', 'cancelled', 'rejected'],
+        default: 'pending'
     }
 }, {
     timestamps: true,
-    collection: 'direct_milk_sales'
+    collection: 'milk_subscriptions'
 });
 
-module.exports = mongoose.model('DirectMilkSale', directMilkSaleSchema);
+module.exports = mongoose.model('MilkSubscription', milkSubscriptionSchema);

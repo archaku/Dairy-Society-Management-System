@@ -348,7 +348,13 @@ router.post('/login', async (req, res) => {
         email: user.email,
         role: userRole,
         firstName: user.firstName,
-        lastName: user.lastName
+        lastName: user.lastName,
+        location: user.location,
+        address: user.address,
+        totalMilkRecords: user.totalMilkRecords,
+        offersSubscription: user.offersSubscription,
+        subscriptionMilkRate: user.subscriptionMilkRate,
+        subscriptionDeliveryRange: user.subscriptionDeliveryRange
       }
     });
   } catch (error) {
@@ -402,7 +408,13 @@ router.get('/me', async (req, res) => {
         email: user.email,
         role: role,
         firstName: user.firstName,
-        lastName: user.lastName
+        lastName: user.lastName,
+        location: user.location,
+        address: user.address,
+        totalMilkRecords: user.totalMilkRecords,
+        offersSubscription: user.offersSubscription,
+        subscriptionMilkRate: user.subscriptionMilkRate,
+        subscriptionDeliveryRange: user.subscriptionDeliveryRange
       }
     });
   } catch (error) {

@@ -63,9 +63,29 @@ const farmerSchema = new mongoose.Schema({
     type: Number,
     default: 0
   },
+  availableQuantity: {
+    type: Number,
+    default: 0
+  },
+  offersSubscription: {
+    type: Boolean,
+    default: false
+  },
+  subscriptionMilkRate: {
+    type: Number,
+    default: 50
+  },
+  subscriptionDeliveryRange: {
+    type: Number,
+    default: 5 // max km
+  },
   isActive: {
     type: Boolean,
     default: true
+  },
+  subscriptionDeliveryCharge: {
+    type: Number,
+    default: 0
   }
 }, {
   timestamps: true,

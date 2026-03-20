@@ -20,6 +20,11 @@ const organizationSaleSchema = new mongoose.Schema({
         type: Number,
         required: true
     },
+    shift: {
+        type: String,
+        enum: ['Morning', 'Evening'],
+        required: true
+    },
     date: {
         type: Date,
         default: Date.now

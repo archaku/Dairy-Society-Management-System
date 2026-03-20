@@ -9,14 +9,14 @@ import {
   TextField, InputAdornment, useTheme, useMediaQuery, Fade,
   Menu, MenuItem, Divider, Tooltip, Dialog, DialogTitle, 
   DialogContent, DialogActions, FormControlLabel, Checkbox,
-  Table, TableBody, TableCell, TableHead, TableRow, Rating
+  Table, TableBody, TableCell, TableHead, TableRow, Rating, Switch
 } from '@mui/material';
 import { 
   User, LogOut, ShoppingCart, History, Droplets, Leaf, 
   ChartBar, Calendar, MapPin, Users, Star, TrendingUp, 
   Award, Package, BarChart3, ChevronRight, Menu as MenuIcon,
   CircleCheck, CircleX, Sprout, ShoppingBag, Info, UserCheck,
-  Search, DownloadCloud, Plus, Minus, Milk
+  Search, DownloadCloud, Plus, Minus, Milk, Settings
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as ChartTooltip, Legend, ResponsiveContainer, BarChart, Bar, Cell } from 'recharts';
@@ -38,6 +38,8 @@ const Dashboard = () => {
   const [purchaseQty, setPurchaseQty] = React.useState('');
   const [deliveryType, setDeliveryType] = React.useState('COD');
   const [distance, setDistance] = React.useState('');
+  const [shift, setShift] = React.useState('Morning');
+  const [farmerShift, setFarmerShift] = React.useState('Morning');
   const [purchaseMessage, setPurchaseMessage] = React.useState({ type: '', text: '' });
   const [searchQuery, setSearchQuery] = React.useState('');
   const [workshops, setWorkshops] = React.useState([]);
@@ -53,6 +55,30 @@ const Dashboard = () => {
   const [farmerAvailQty, setFarmerAvailQty] = React.useState('');
   const [farmerPrice, setFarmerPrice] = React.useState(50);
   const [directSaleMessage, setDirectSaleMessage] = React.useState({ text: '', type: '' });
+  const [offersSubscription, setOffersSubscription] = React.useState(false);
+  const [subscriptionMilkRate, setSubscriptionMilkRate] = React.useState(50);
+  const [subscriptionDeliveryRange, setSubscriptionDeliveryRange] = React.useState(5);
+  const [subscriptionFarmers, setSubscriptionFarmers] = React.useState([]);
+  const [deliveryChargeMessage, setDeliveryChargeMessage] = React.useState({ text: '', type: '' });
+  const [subscriptionModal, setSubscriptionModal] = React.useState({
+    open: false,
+    farmerId: null,
+    farmerName: '',
+    pricePerLiter: 0,
+    deliveryCharge: 0,
+    shift: 'Morning',
+    qty: 1
+  });
+  const [subscriptionData, setSubscriptionData] = React.useState({
+    startDate: new Date(new Date().setDate(new Date().getDate() + 1)).toISOString().split('T')[0],
+    endDate: new Date(new Date().setDate(new Date().getDate() + 31)).toISOString().split('T')[0],
+    distance: '',
+    deliveryLocation: ''
+  });
+  const [subscriptionMessage, setSubscriptionMessage] = React.useState({ text: '', type: '' });
+  const [mySubscriptions, setMySubscriptions] = React.useState([]);
+  const [farmerDeliveriesToday, setFarmerDeliveriesToday] = React.useState([]);
+  const [farmerPendingSubscriptions, setFarmerPendingSubscriptions] = React.useState([]);
   const [feedbackData, setFeedbackData] = React.useState({ id: null, rating: 5, feedback: '' });
   const [farmerReviews, setFarmerReviews] = React.useState({ farmerId: null, reviews: [] });
   const [showReviewsModal, setShowReviewsModal] = React.useState(false);
@@ -67,6 +93,11 @@ const Dashboard = () => {
 
   const getDirectBuyQty = (id) => directBuyQtys[id] || 1;
   const setDirectBuyQty = (id, val) => setDirectBuyQtys(prev => ({ ...prev, [id]: val }));
+
+  const morningAvail = availability?.morningAvailable || 0;
+  const eveningAvail = availability?.eveningAvailable || 0;
+  const totalAvailable = morningAvail + eveningAvail;
+  const currentShiftAvailable = shift === 'Morning' ? morningAvail : eveningAvail;
 
   const formatDateTime = (dateStr) => {
     if (!dateStr) return 'N/A';
@@ -124,7 +155,7 @@ const Dashboard = () => {
         setLoadingWorkshops(true);
         const config = { headers: { Authorization: `Bearer ${token}` } };
 
-        const [milkRes, purchaseRes, availRes, workshopRes, supplementRes, directAvailRes, myDirectRes, farmerDirectRes, analyticsRes, suppOrderRes] = await Promise.all([
+        const [milkRes, purchaseRes, availRes, workshopRes, supplementRes, directAvailRes, myDirectRes, farmerDirectRes, analyticsRes, suppOrderRes, mySubsRes, farmerDeliveriesRes, farmerPendingSubsRes, subscriptionFarmersRes] = await Promise.all([
           user?.role === 'farmer' ? axios.get('http://localhost:5000/api/milk/farmer', config) : Promise.resolve({ data: { records: [] } }),
           user?.role === 'user' ? axios.get('http://localhost:5000/api/purchase/user', config) : Promise.resolve({ data: { purchases: [] } }),
           axios.get('http://localhost:5000/api/purchase/available'),
@@ -134,18 +165,31 @@ const Dashboard = () => {
           user?.role === 'user' ? axios.get('http://localhost:5000/api/direct-milk/user/requests', config) : Promise.resolve({ data: { requests: [] } }),
           user?.role === 'farmer' ? axios.get('http://localhost:5000/api/direct-milk/farmer/requests', config) : Promise.resolve({ data: { requests: [] } }),
           user?.role === 'farmer' ? axios.get('http://localhost:5000/api/analytics/farmer', config) : Promise.resolve({ data: null }),
-          user?.role === 'farmer' ? axios.get('http://localhost:5000/api/supplements/orders', config) : Promise.resolve({ data: { orders: [] } })
+          user?.role === 'farmer' ? axios.get('http://localhost:5000/api/supplements/orders', config) : Promise.resolve({ data: { orders: [] } }),
+          user?.role === 'user' ? axios.get('http://localhost:5000/api/subscriptions/user', config) : Promise.resolve({ data: { subscriptions: [] } }),
+          user?.role === 'farmer' ? axios.get('http://localhost:5000/api/subscriptions/farmer/today', config) : Promise.resolve({ data: { schedule: [] } }),
+          user?.role === 'farmer' ? axios.get('http://localhost:5000/api/subscriptions/farmer/requests', config) : Promise.resolve({ data: { requests: [] } }),
+          user?.role === 'user' ? axios.get('http://localhost:5000/api/direct-milk/subscription-farmers', config) : Promise.resolve({ data: { farmers: [] } })
         ]);
 
         setMilkRecords(milkRes.data.records || []);
         setPurchases(purchaseRes.data.purchases || []);
-        setAvailability(availRes.data || { available: 0, rate: 50, deliveryCharge: 10 });
+        setAvailability(availRes.data || { morningAvailable: 0, eveningAvailable: 0, rate: 50, deliveryCharge: 10 });
+        if (user?.role === 'farmer') {
+            setOffersSubscription(user.offersSubscription || false);
+            setSubscriptionMilkRate(user.subscriptionMilkRate || 50);
+            setSubscriptionDeliveryRange(user.subscriptionDeliveryRange || 5);
+        }
         setWorkshops(workshopRes.data.workshops || []);
         setSupplements(supplementRes.data.supplements || []);
         setDirectAvailabilities(directAvailRes.data.availabilities || []);
         setMyDirectRequests(myDirectRes.data.requests || []);
         setFarmerDirectRequests(farmerDirectRes.data.requests || []);
         setSupplementOrders(suppOrderRes?.data?.orders || []);
+        setMySubscriptions(mySubsRes.data.subscriptions || []);
+        setFarmerDeliveriesToday(farmerDeliveriesRes.data.schedule || []);
+        setFarmerPendingSubscriptions(farmerPendingSubsRes.data.requests || []);
+        setSubscriptionFarmers(subscriptionFarmersRes.data.farmers || []);
 
         if (analyticsRes && analyticsRes.data) {
           setAnalyticsData({
@@ -286,7 +330,8 @@ const Dashboard = () => {
                   quantity: parseFloat(purchaseQty),
                   deliveryType: deliveryType,
                   distance: deliveryType === 'COD' ? parseFloat(distance || 0) : 0,
-                  paymentId: response.razorpay_payment_id // Optional: link payment
+                  paymentId: response.razorpay_payment_id,
+                  shift
                 },
                 config
               );
@@ -437,7 +482,8 @@ const Dashboard = () => {
       const config = { headers: { Authorization: `Bearer ${token}` } };
       await axios.post('http://localhost:5000/api/direct-milk/availability', {
         availableQuantity: qty,
-        pricePerLiter: price
+        pricePerLiter: price,
+        shift: farmerShift
       }, config);
       setDirectSaleMessage({ text: 'Availability updated successfully!', type: 'success' });
       // Refresh direct availabilities after update
@@ -450,7 +496,7 @@ const Dashboard = () => {
     }
   };
 
-  const handleDirectPurchaseRequest = async (farmerId, qty, price) => {
+  const handleDirectPurchaseRequest = async (farmerId, qty, price, shiftVal) => {
     try {
       const amount = parseFloat(qty) * parseFloat(price);
       const config = { headers: { Authorization: `Bearer ${token}` } };
@@ -486,7 +532,8 @@ const Dashboard = () => {
               const response = await axios.post('http://localhost:5000/api/direct-milk/request', {
                 farmerId,
                 quantity: parseFloat(qty),
-                paymentId: response.razorpay_payment_id
+                paymentId: response.razorpay_payment_id,
+                shift: shiftVal
               }, config);
 
               if (response.data.success) {
@@ -572,6 +619,122 @@ const Dashboard = () => {
       case 'farmer': return <Droplets size={20} />;
       case 'user': return <ShoppingCart size={20} />;
       default: return <User size={20} />;
+    }
+  };
+
+  const calculateSubscriptionTotal = () => {
+    if (!subscriptionData.startDate || !subscriptionData.endDate || !subscriptionModal.qty || !subscriptionModal.pricePerLiter) return { milkTotal: 0, delivery: 0, total: 0 };
+    const start = new Date(subscriptionData.startDate);
+    const end = new Date(subscriptionData.endDate);
+    const days = Math.ceil(Math.abs(end - start) / (1000 * 60 * 60 * 24)) + 1;
+    if (days <= 0) return { milkTotal: 0, delivery: 0, total: 0 };
+    const distanceVal = subscriptionData.distance ? Number(subscriptionData.distance) : 0;
+    const milkTotal = subscriptionModal.pricePerLiter * subscriptionModal.qty * days;
+    const delivery = distanceVal * 15 * days;
+    return { milkTotal, delivery, total: milkTotal + delivery };
+  };
+
+  const handleSubscriptionSubmit = async () => {
+    if (!subscriptionData.distance || !subscriptionData.deliveryLocation) {
+      setSubscriptionMessage({ text: 'Distance and delivery location are required.', type: 'error' });
+      return;
+    }
+    
+    setSubscriptionMessage({ text: '', type: '' });
+    try {
+      const config = { headers: { Authorization: `Bearer ${token}` } };
+      const { total } = calculateSubscriptionTotal();
+      
+      if (total <= 0) {
+          setSubscriptionMessage({ text: 'Invalid subscription total.', type: 'error' });
+          return;
+      }
+
+      // 1. Create Razorpay Order
+      const orderRes = await axios.post('http://localhost:5000/api/payment/create-order', {
+        amount: total,
+        receipt: `receipt_sub_${Date.now()}`
+      }, config);
+
+      if (!orderRes.data.success) throw new Error('Payment initialization failed');
+
+      const { order } = orderRes.data;
+
+      // 2. Open Razorpay Checkout
+      const options = {
+        key: 'rzp_test_SQZX6y25mriFCf',
+        amount: order.amount,
+        currency: order.currency,
+        name: 'Milk Subscription',
+        description: `Pre-booking for ${subscriptionModal.qty}L/day`,
+        order_id: order.id,
+        handler: async (response) => {
+          try {
+            // 3. Verify Payment and Create Subscription
+            await axios.post('http://localhost:5000/api/subscriptions', {
+              farmerId: subscriptionModal.farmerId,
+              quantityPerDay: subscriptionModal.qty,
+              startDate: subscriptionData.startDate,
+              endDate: subscriptionData.endDate,
+              shift: subscriptionModal.shift,
+              distance: Number(subscriptionData.distance),
+              deliveryLocation: subscriptionData.deliveryLocation,
+              razorpay_payment_id: response.razorpay_payment_id,
+              razorpay_order_id: response.razorpay_order_id,
+              razorpay_signature: response.razorpay_signature
+            }, config);
+
+            setSubscriptionMessage({ text: 'Subscription created and paid successfully!', type: 'success' });
+            
+            // Refresh subscriptions
+            const mySubsRes = await axios.get('http://localhost:5000/api/subscriptions/user', config);
+            setMySubscriptions(mySubsRes.data.subscriptions || []);
+
+            setTimeout(() => {
+              setSubscriptionModal({ ...subscriptionModal, open: false });
+              setSubscriptionMessage({ text: '', type: '' });
+            }, 2000);
+          } catch (err) {
+            setSubscriptionMessage({ text: err.response?.data?.message || 'Verification failed', type: 'error' });
+          }
+        },
+        prefill: {
+          name: user?.firstName + ' ' + user?.lastName,
+          email: user?.email,
+          contact: user?.phone
+        },
+        theme: { color: '#1a5d1a' }
+      };
+
+      const rzp = new window.Razorpay(options);
+      rzp.open();
+
+    } catch (err) {
+      setSubscriptionMessage({ text: err.response?.data?.message || err.message || 'Error initializing payment', type: 'error' });
+    }
+  };
+
+  const handleFarmerMarkDelivery = async (subscriptionId) => {
+    try {
+      const config = { headers: { Authorization: `Bearer ${token}` } };
+      await axios.post('http://localhost:5000/api/subscriptions/delivery', { subscriptionId }, config);
+      // Quickly refresh today's lineup
+      const res = await axios.get('http://localhost:5000/api/subscriptions/farmer/today', config);
+      setFarmerDeliveriesToday(res.data.schedule || []);
+    } catch (err) {
+      alert(err.response?.data?.message || 'Error marking delivery');
+    }
+  };
+
+  const handleFarmerSubscriptionAction = async (subscriptionId, action) => {
+    try {
+      const config = { headers: { Authorization: `Bearer ${token}` } };
+      await axios.post('http://localhost:5000/api/subscriptions/farmer/action', { subscriptionId, action }, config);
+      // Refresh pending queue
+      const res = await axios.get('http://localhost:5000/api/subscriptions/farmer/requests', config);
+      setFarmerPendingSubscriptions(res.data.requests || []);
+    } catch (error) {
+      alert(error.response?.data?.message || 'Error processing request');
     }
   };
 
@@ -861,12 +1024,12 @@ const Dashboard = () => {
                 </Grid>
               )}
 
-              {/* Direct Sales Manager (Farmer) */}
+               {/* Direct Sales Manager (Farmer) */}
               {activeTab === 'direct-manage' && (
                 <Grid container spacing={3}>
                   {/* Post Availability */}
-                  <Grid item xs={12}>
-                    <Paper sx={{ p: 4, borderRadius: 4, boxShadow: '0 4px 20px rgba(0,0,0,0.05)', border: '1px solid', borderColor: 'divider' }}>
+                  <Grid item xs={12} md={7}>
+                    <Paper sx={{ p: 4, borderRadius: 4, height: '100%', boxShadow: '0 4px 20px rgba(0,0,0,0.05)', border: '1px solid', borderColor: 'divider' }}>
                       <Typography variant="h6" sx={{ fontWeight: 700, mb: 3, display: 'flex', alignItems: 'center', gap: 1.5 }}>
                         <Droplets size={22} color={theme.palette.primary.main} /> Post Availability
                       </Typography>
@@ -896,6 +1059,20 @@ const Dashboard = () => {
                               InputProps={{ startAdornment: <InputAdornment position="start">₹</InputAdornment> }}
                             />
                           </Grid>
+                          <Grid item xs={12}>
+                            <TextField
+                              fullWidth
+                              select
+                              label="Shift"
+                              value={farmerShift}
+                              onChange={(e) => setFarmerShift(e.target.value)}
+                              SelectProps={{ native: true }}
+                              required
+                            >
+                              <option value="Morning">Morning</option>
+                              <option value="Evening">Evening</option>
+                            </TextField>
+                          </Grid>
                         </Grid>
                         <Button
                           fullWidth
@@ -913,6 +1090,86 @@ const Dashboard = () => {
                             sx={{ mt: 2, textAlign: 'center', fontWeight: 600 }}
                           >
                             {directSaleMessage.text}
+                          </Typography>
+                        )}
+                      </Box>
+                    </Paper>
+                  </Grid>
+
+                  {/* Subscription Settings */}
+                  <Grid item xs={12} md={5}>
+                    <Paper sx={{ p: 4, borderRadius: 4, height: '100%', boxShadow: '0 4px 20px rgba(0,0,0,0.05)', border: '1px solid', borderColor: 'divider' }}>
+                      <Typography variant="h6" sx={{ fontWeight: 700, mb: 3, display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                        <Settings size={22} color={theme.palette.primary.main} /> Subscription Settings
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+                        Activate subscription offerings, defining your exact Milk Rate and maximum permissible Delivery Range for Customers.
+                      </Typography>
+                      <Box component="form" onSubmit={async (e) => {
+                          e.preventDefault();
+                          try {
+                            const config = { headers: { Authorization: `Bearer ${token}` } };
+                            await axios.post('http://localhost:5000/api/direct-milk/subscription-settings', { 
+                                offersSubscription, 
+                                subscriptionMilkRate, 
+                                subscriptionDeliveryRange 
+                            }, config);
+                            setDeliveryChargeMessage({ text: 'Subscription settings synced securely', type: 'success' });
+                            setTimeout(() => setDeliveryChargeMessage({ text: '', type: '' }), 3000);
+                          } catch (err) {
+                            setDeliveryChargeMessage({ text: err.response?.data?.message || 'Error updating settings', type: 'error' });
+                          }
+                      }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2, p: 2, bgcolor: 'rgba(0,0,0,0.02)', borderRadius: 2 }}>
+                          <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>Enable Pre-bookings?</Typography>
+                          <Switch 
+                            checked={offersSubscription} 
+                            onChange={(e) => setOffersSubscription(e.target.checked)} 
+                            color="success" 
+                          />
+                        </Box>
+                        {offersSubscription && (
+                          <>
+                            <TextField
+                              fullWidth
+                              label="Milk Rate per Liter (₹)"
+                              type="number"
+                              inputProps={{ step: 1, min: 1 }}
+                              value={subscriptionMilkRate}
+                              onChange={(e) => setSubscriptionMilkRate(e.target.value)}
+                              required
+                              InputProps={{ startAdornment: <InputAdornment position="start">₹</InputAdornment> }}
+                              sx={{ mb: 2 }}
+                            />
+                            <TextField
+                              fullWidth
+                              label="Maximum Delivery Radius (km)"
+                              type="number"
+                              inputProps={{ step: 1, min: 1 }}
+                              value={subscriptionDeliveryRange}
+                              onChange={(e) => setSubscriptionDeliveryRange(e.target.value)}
+                              required
+                              InputProps={{ endAdornment: <InputAdornment position="end">km</InputAdornment> }}
+                              sx={{ mb: 2 }}
+                            />
+                          </>
+                        )}
+                        <Button
+                          fullWidth
+                          variant="contained"
+                          type="submit"
+                          size="large"
+                          sx={{ py: 1.5, borderRadius: 3, fontWeight: 800 }}
+                        >
+                          Save Settings
+                        </Button>
+                        {deliveryChargeMessage.text && (
+                          <Typography
+                            variant="body2"
+                            color={deliveryChargeMessage.type === 'error' ? 'error' : 'success.main'}
+                            sx={{ mt: 2, textAlign: 'center', fontWeight: 600 }}
+                          >
+                            {deliveryChargeMessage.text}
                           </Typography>
                         )}
                       </Box>
@@ -969,14 +1226,169 @@ const Dashboard = () => {
                       )}
                     </Paper>
                   </Grid>
+
+                  {/* Pending Subscription Requests */}
+                  <Grid item xs={12}>
+                    <Paper sx={{ p: 3, borderRadius: 4, boxShadow: '0 4px 20px rgba(0,0,0,0.05)', border: '1px solid', borderColor: 'divider' }}>
+                      <Typography variant="h6" sx={{ fontWeight: 700, mb: 3, display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                        <Calendar size={22} color={theme.palette.secondary.main} /> Pending Subscriptions
+                      </Typography>
+                      {farmerPendingSubscriptions.length === 0 ? (
+                        <Box sx={{ textAlign: 'center', py: 6 }}>
+                          <Typography color="text.secondary">No pending subscription requests from buyers.</Typography>
+                        </Box>
+                      ) : (
+                        <Box>
+                          {farmerPendingSubscriptions.map((req) => (
+                            <Card key={req._id} variant="outlined" sx={{ mb: 2, borderRadius: 3, borderLeft: '4px solid #f59e0b' }}>
+                              <CardContent>
+                                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                  <Box>
+                                    <Typography sx={{ fontWeight: 700 }}>{req.user?.firstName} {req.user?.lastName}</Typography>
+                                    <Typography variant="body2" color="text.secondary">{req.user?.address || ''}</Typography>
+                                    <Box sx={{ mt: 1 }}>
+                                      <Chip label={`${req.quantityPerDay} L / Day`} size="small" color="primary" sx={{ mr: 1, fontWeight: 700 }} />
+                                      <Chip label={req.shift} size="small" variant="outlined" sx={{ mr: 1, fontWeight: 700 }} />
+                                      <Chip label={`₹${req.totalAmount} Total`} size="small" color="success" sx={{ fontWeight: 700 }} />
+                                    </Box>
+                                    <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 1 }}>
+                                      From {new Date(req.startDate).toLocaleDateString()} to {new Date(req.endDate).toLocaleDateString()}
+                                    </Typography>
+                                  </Box>
+                                  <Box sx={{ display: 'flex', gap: 1 }}>
+                                    <IconButton color="success" onClick={() => handleFarmerSubscriptionAction(req._id, 'approve')} sx={{ bgcolor: 'success.light', '&:hover': { bgcolor: 'success.main', color: 'white' } }}>
+                                      <CircleCheck size={20} />
+                                    </IconButton>
+                                    <IconButton color="error" onClick={() => handleFarmerSubscriptionAction(req._id, 'reject')} sx={{ bgcolor: 'error.light', '&:hover': { bgcolor: 'error.main', color: 'white' } }}>
+                                      <CircleX size={20} />
+                                    </IconButton>
+                                  </Box>
+                                </Box>
+                              </CardContent>
+                            </Card>
+                          ))}
+                        </Box>
+                      )}
+                    </Paper>
+                  </Grid>
+
+                  {/* Today's Expected Pre-book Deliveries */}
+                  <Grid item xs={12}>
+                    <Paper sx={{ p: 3, borderRadius: 4, boxShadow: '0 4px 20px rgba(0,0,0,0.05)', border: '1px solid', borderColor: 'divider' }}>
+                      <Typography variant="h6" sx={{ fontWeight: 700, mb: 3, display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                        <Package size={22} color={theme.palette.secondary.main} /> Today's Subscription Deliveries
+                      </Typography>
+                      {farmerDeliveriesToday.length === 0 ? (
+                        <Box sx={{ textAlign: 'center', py: 6 }}>
+                          <Typography color="text.secondary">You have no active subscriptions scheduled for delivery today.</Typography>
+                        </Box>
+                      ) : (
+                        <Box>
+                          {farmerDeliveriesToday.map(({ subscription, deliveryStatus, deliveryLogId }) => (
+                            <Card key={subscription._id} variant="outlined" sx={{ mb: 2, borderRadius: 3, borderLeft: deliveryStatus === 'delivered' ? '4px solid #10b981' : '4px solid #f59e0b' }}>
+                              <CardContent sx={{ pb: '16px !important' }}>
+                                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                  <Box>
+                                    <Typography sx={{ fontWeight: 800 }}>{subscription.user?.firstName} {subscription.user?.lastName}</Typography>
+                                    <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>{subscription.user?.address}</Typography>
+                                    <Chip label={`${subscription.quantityPerDay} L`} size="small" color="primary" sx={{ mr: 1, fontWeight: 700 }} />
+                                    <Chip label={subscription.shift} size="small" variant="outlined" sx={{ mr: 1, fontWeight: 700 }} />
+                                    <Chip label={deliveryStatus} color={deliveryStatus === 'delivered' ? 'success' : 'warning'} size="small" sx={{ fontWeight: 700, textTransform: 'uppercase', fontSize: '0.65rem' }} />
+                                  </Box>
+                                  <Box>
+                                    {deliveryStatus === 'pending' ? (
+                                      <Button 
+                                        variant="contained" 
+                                        color="primary" 
+                                        onClick={() => handleFarmerMarkDelivery(subscription._id)}
+                                        sx={{ borderRadius: 2, fontWeight: 700 }}
+                                        startIcon={<CircleCheck size={18} />}
+                                      >
+                                        Mark Delivered
+                                      </Button>
+                                    ) : (
+                                      <Chip label="Delivery Logged" color="success" icon={<CircleCheck size={16} />} sx={{ fontWeight: 700 }} />
+                                    )}
+                                  </Box>
+                                </Box>
+                              </CardContent>
+                            </Card>
+                          ))}
+                        </Box>
+                      )}
+                    </Paper>
+                  </Grid>
                 </Grid>
               )}
 
               {/* Local Farmers Browser (Customer) */}
               {activeTab === 'direct-buy' && (
                 <Grid container spacing={3}>
-                  {/* Available Farmers */}
+                  {/* Farmers Offering Subscriptions */}
                   <Grid item xs={12} md={8}>
+                    <Paper sx={{ p: 3, borderRadius: 4, mb: 3, boxShadow: '0 4px 20px rgba(0,0,0,0.05)', border: '1px solid', borderColor: 'divider', bgcolor: 'rgba(26, 93, 26, 0.02)' }}>
+                      <Typography variant="h6" sx={{ fontWeight: 700, mb: 3, display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                        <Calendar size={22} color={theme.palette.secondary.main} /> Subscription Providers
+                      </Typography>
+                      {subscriptionFarmers.length === 0 ? (
+                        <Box sx={{ textAlign: 'center', py: 4 }}>
+                          <Typography color="text.secondary">No farmers are currently offering subscriptions.</Typography>
+                        </Box>
+                      ) : (
+                        <Grid container spacing={2}>
+                          {subscriptionFarmers.map((farmer) => (
+                            <Grid item xs={12} lg={6} key={farmer._id}>
+                              <Card variant="outlined" sx={{ borderRadius: 3, height: '100%', borderLeft: '4px solid #f59e0b' }}>
+                                <CardContent>
+                                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 2 }}>
+                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                                      <Avatar sx={{ bgcolor: 'secondary.main', width: 56, height: 56, fontSize: '1.4rem' }}>
+                                        {farmer.firstName?.[0] || 'F'}
+                                      </Avatar>
+                                      <Box>
+                                        <Typography variant="h6" sx={{ fontWeight: 800, lineHeight: 1.2 }}>{farmer.firstName} {farmer.lastName}</Typography>
+                                        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>{farmer.address}</Typography>
+                                      </Box>
+                                    </Box>
+                                    <Box sx={{ textAlign: 'right' }}>
+                                      <Typography variant="h6" sx={{ fontWeight: 900, color: 'success.main' }}>₹{farmer.subscriptionMilkRate}<Typography component="span" variant="caption">/L</Typography></Typography>
+                                      <Chip label={`Max Range: ${farmer.subscriptionDeliveryRange} km`} size="small" variant="outlined" sx={{ mt: 0.5, fontWeight: 700, fontSize: '0.65rem' }} />
+                                    </Box>
+                                  </Box>
+                                  <Divider sx={{ my: 2 }} />
+                                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                      <Star size={16} fill="#fbbf24" color="#fbbf24" />
+                                      <Typography variant="body2" sx={{ fontWeight: 700 }}>{farmer.avgRating?.toFixed(1) || '0.0'}</Typography>
+                                      <Typography variant="caption" color="text.secondary">({farmer.totalReviews} reviews)</Typography>
+                                    </Box>
+                                    <Button
+                                      variant="contained"
+                                      size="small"
+                                      color="secondary"
+                                      onClick={() => setSubscriptionModal({
+                                        open: true,
+                                        farmerId: farmer._id,
+                                        farmerName: `${farmer.firstName} ${farmer.lastName}`,
+                                        pricePerLiter: farmer.subscriptionMilkRate,
+                                        deliveryCharge: 0,
+                                        shift: 'Morning',
+                                        qty: 1
+                                      })}
+                                      sx={{ borderRadius: 2, fontWeight: 700 }}
+                                    >
+                                      Subscribe
+                                    </Button>
+                                  </Box>
+                                </CardContent>
+                              </Card>
+                            </Grid>
+                          ))}
+                        </Grid>
+                      )}
+                    </Paper>
+
+                    {/* Available Farmers */}
                     <Paper sx={{ p: 3, borderRadius: 4, boxShadow: '0 4px 20px rgba(0,0,0,0.05)', border: '1px solid', borderColor: 'divider' }}>
                       <Typography variant="h6" sx={{ fontWeight: 700, mb: 3, display: 'flex', alignItems: 'center', gap: 1.5 }}>
                         <Sprout size={22} color={theme.palette.primary.main} /> Local Farmers
@@ -1009,7 +1421,8 @@ const Dashboard = () => {
                                       </Box>
                                       <Box sx={{ textAlign: 'right' }}>
                                         <Typography variant="h5" sx={{ fontWeight: 900, color: 'primary.main' }}>₹{avail.pricePerLiter}<Typography component="span" variant="caption">/L</Typography></Typography>
-                                        <Typography variant="caption" color="text.secondary">{avail.availableQuantity} L available</Typography>
+                                        <Typography variant="caption" color="text.secondary" display="block">{avail.availableQuantity} L available</Typography>
+                                        <Chip label={avail.shift} size="small" color="secondary" sx={{ mt: 0.5, fontWeight: 700, height: 20, fontSize: '0.65rem' }} />
                                       </Box>
                                     </Box>
                                     <Divider sx={{ my: 2 }} />
@@ -1037,9 +1450,27 @@ const Dashboard = () => {
                                           Reviews
                                         </Button>
                                         <Button
+                                          variant="outlined"
+                                          size="small"
+                                          color="secondary"
+                                          onClick={() => avail.farmer?._id && setSubscriptionModal({
+                                            open: true,
+                                            farmerId: avail.farmer._id,
+                                            farmerName: `${avail.farmer.firstName} ${avail.farmer.lastName}`,
+                                            pricePerLiter: avail.pricePerLiter,
+                                            deliveryCharge: avail.farmer.subscriptionDeliveryCharge || 0,
+                                            shift: avail.shift,
+                                            qty
+                                          })}
+                                          sx={{ borderRadius: 2, fontWeight: 700 }}
+                                          disabled={!avail.farmer?._id}
+                                        >
+                                          Subscribe
+                                        </Button>
+                                        <Button
                                           variant="contained"
                                           size="small"
-                                          onClick={() => avail.farmer?._id && handleDirectPurchaseRequest(avail.farmer._id, qty, avail.pricePerLiter)}
+                                          onClick={() => avail.farmer?._id && handleDirectPurchaseRequest(avail.farmer._id, qty, avail.pricePerLiter, avail.shift)}
                                           sx={{ borderRadius: 2, fontWeight: 700 }}
                                           disabled={!avail.farmer?._id}
                                         >
@@ -1115,6 +1546,46 @@ const Dashboard = () => {
                         >
                           {directSaleMessage.text}
                         </Typography>
+                      )}
+                    </Paper>
+                  </Grid>
+
+                  {/* My Subscriptions */}
+                  <Grid item xs={12}>
+                    <Paper sx={{ p: 3, borderRadius: 4, boxShadow: '0 4px 20px rgba(0,0,0,0.05)', border: '1px solid', borderColor: 'divider' }}>
+                      <Typography variant="h6" sx={{ fontWeight: 700, mb: 3, display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                        <Calendar size={22} color={theme.palette.primary.main} /> My Active Subscriptions
+                      </Typography>
+                      {mySubscriptions.length === 0 ? (
+                        <Box sx={{ textAlign: 'center', py: 6 }}>
+                          <Typography color="text.secondary">No active milk subscriptions pre-booked with local farmers.</Typography>
+                        </Box>
+                      ) : (
+                        <Box>
+                          {mySubscriptions.map((sub) => (
+                            <Card key={sub._id} variant="outlined" sx={{ mb: 2, borderRadius: 3 }}>
+                              <CardContent sx={{ pb: '16px !important' }}>
+                                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
+                                  <Box>
+                                    <Typography variant="subtitle1" sx={{ fontWeight: 800 }}>Farmer: {sub.farmer?.firstName} {sub.farmer?.lastName}</Typography>
+                                    <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                                      {new Date(sub.startDate).toLocaleDateString()} - {new Date(sub.endDate).toLocaleDateString()}
+                                    </Typography>
+                                    <Box sx={{ display: 'flex', gap: 1 }}>
+                                      <Chip label={`${sub.quantityPerDay} L`} size="small" color="primary" sx={{ fontWeight: 700 }} />
+                                      <Chip label={sub.shift} size="small" variant="outlined" sx={{ fontWeight: 700 }} />
+                                      <Chip label={sub.status} size="small" color={sub.status === 'active' ? 'success' : 'default'} sx={{ fontWeight: 700, textTransform: 'capitalize' }} />
+                                    </Box>
+                                  </Box>
+                                  <Box sx={{ textAlign: 'right' }}>
+                                    <Typography variant="h6" sx={{ fontWeight: 900, color: 'primary.main' }}>₹{sub.totalAmount}</Typography>
+                                    <Typography variant="caption" color="text.secondary" display="block">Total Paid Limit</Typography>
+                                  </Box>
+                                </Box>
+                              </CardContent>
+                            </Card>
+                          ))}
+                        </Box>
                       )}
                     </Paper>
                   </Grid>
@@ -1627,7 +2098,10 @@ const Dashboard = () => {
                       <TableBody>
                         {filteredPurchases.map((purchase) => (
                           <TableRow key={purchase._id} hover sx={{ '&:last-child td, &:last-child th': { border: 0 } }}>
-                            <TableCell>{formatDateTime(purchase.date)}</TableCell>
+                            <TableCell>
+                              {formatDateTime(purchase.date)}
+                              <Typography variant="caption" display="block" color="text.secondary">Shift: {purchase.shift || 'N/A'}</Typography>
+                            </TableCell>
                             <TableCell sx={{ fontWeight: 700 }}>{purchase.quantity} L</TableCell>
                             <TableCell>₹{purchase.rate}</TableCell>
                             <TableCell>₹{purchase.deliveryCharge}</TableCell>
@@ -1677,7 +2151,7 @@ const Dashboard = () => {
                             <ShoppingCart size={22} color={theme.palette.primary.main} /> Buy Fresh Milk
                           </Typography>
                           
-                          {availability.available > 0 ? (
+                          {totalAvailable > 0 ? (
                             <Box component="form" onSubmit={handlePurchase}>
                               <Grid container spacing={2}>
                                 <Grid item xs={12} sm={6}>
@@ -1685,19 +2159,19 @@ const Dashboard = () => {
                                     fullWidth
                                     label="Quantity (Liters)"
                                     type="number"
-                                    inputProps={{ step: 0.1, max: availability.available }}
+                                    inputProps={{ step: 0.1, max: currentShiftAvailable }}
                                     value={purchaseQty}
                                     onChange={(e) => {
                                       const val = e.target.value;
-                                      if (val > availability.available) {
-                                        setPurchaseMessage({ type: 'error', text: `Only ${availability.available.toFixed(1)}L available` });
+                                      if (val > currentShiftAvailable) {
+                                        setPurchaseMessage({ type: 'error', text: `Only ${currentShiftAvailable.toFixed(1)}L available` });
                                       } else {
                                         setPurchaseMessage({ type: '', text: '' });
                                       }
                                       setPurchaseQty(val);
                                     }}
                                     required
-                                    helperText={`Available: ${availability.available.toFixed(1)} L`}
+                                    helperText={`Available: ${currentShiftAvailable.toFixed(1)} L`}
                                   />
                                 </Grid>
                                 <Grid item xs={12} sm={6}>
@@ -1711,6 +2185,20 @@ const Dashboard = () => {
                                   >
                                     <option value="COD">Home Delivery (COD)</option>
                                     <option value="Takeaway">Takeaway (Zero Delivery)</option>
+                                  </TextField>
+                                </Grid>
+                                <Grid item xs={12} sm={12}>
+                                  <TextField
+                                    fullWidth
+                                    select
+                                    label="Shift"
+                                    value={shift}
+                                    onChange={(e) => setShift(e.target.value)}
+                                    SelectProps={{ native: true }}
+                                    required
+                                  >
+                                    <option value="Morning">Morning</option>
+                                    <option value="Evening">Evening</option>
                                   </TextField>
                                 </Grid>
                                 {deliveryType === 'COD' && (
@@ -1759,7 +2247,7 @@ const Dashboard = () => {
                                 size="large"
                                 variant="contained"
                                 type="submit"
-                                disabled={!purchaseQty || purchaseQty > availability.available}
+                                disabled={!purchaseQty || purchaseQty > currentShiftAvailable}
                                 sx={{ mt: 3, py: 1.5, borderRadius: 3, fontWeight: 800 }}
                               >
                                 Place Order
@@ -1843,6 +2331,122 @@ const Dashboard = () => {
         <DialogActions sx={{ px: 3, pb: 3, gap: 1 }}>
           <Button onClick={() => setFeedbackData({ id: null, rating: 5, feedback: '' })} sx={{ borderRadius: 2 }}>Cancel</Button>
           <Button form="feedback-form" type="submit" variant="contained" sx={{ borderRadius: 2, fontWeight: 800, px: 4 }}>Submit Review</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Subscription Modal */}
+      <Dialog open={subscriptionModal.open} onClose={() => setSubscriptionModal({ ...subscriptionModal, open: false })} maxWidth="sm" fullWidth>
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1.5, pb: 1 }}>
+          <Calendar size={20} color={theme.palette.secondary.main} />
+          <Typography variant="h6" sx={{ fontWeight: 800 }}>Setup Subscription</Typography>
+        </DialogTitle>
+        <DialogContent dividers>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3, pt: 1 }}>
+            <Box sx={{ p: 2, bgcolor: 'rgba(0,0,0,0.03)', borderRadius: 2 }}>
+              <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1 }}>Farmer: {subscriptionModal.farmerName}</Typography>
+              <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+                <Chip label={`₹${subscriptionModal.pricePerLiter} / L`} size="small" color="success" />
+              </Box>
+            </Box>
+            
+            <Grid container spacing={2}>
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  fullWidth
+                  label="Quantity (L/Day)"
+                  type="number"
+                  inputProps={{ step: 0.5, min: 1 }}
+                  value={subscriptionModal.qty}
+                  onChange={(e) => setSubscriptionModal({ ...subscriptionModal, qty: e.target.value })}
+                />
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  fullWidth
+                  select
+                  label="Shift"
+                  SelectProps={{ native: true }}
+                  value={subscriptionModal.shift}
+                  onChange={(e) => setSubscriptionModal({ ...subscriptionModal, shift: e.target.value })}
+                >
+                  <option value="Morning">Morning</option>
+                  <option value="Evening">Evening</option>
+                </TextField>
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  fullWidth
+                  label="Start Date"
+                  type="date"
+                  value={subscriptionData.startDate}
+                  onChange={(e) => setSubscriptionData({ ...subscriptionData, startDate: e.target.value })}
+                  InputLabelProps={{ shrink: true }}
+                />
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  fullWidth
+                  label="End Date"
+                  type="date"
+                  value={subscriptionData.endDate}
+                  onChange={(e) => setSubscriptionData({ ...subscriptionData, endDate: e.target.value })}
+                  InputLabelProps={{ shrink: true }}
+                />
+              </Grid>
+              <Grid item xs={12} sm={8}>
+                <TextField
+                  fullWidth
+                  label="Delivery Location / Address"
+                  type="text"
+                  value={subscriptionData.deliveryLocation}
+                  onChange={(e) => setSubscriptionData({ ...subscriptionData, deliveryLocation: e.target.value })}
+                  placeholder="E.g., 123 Main St, Springfield"
+                />
+              </Grid>
+              <Grid item xs={12} sm={4}>
+                <TextField
+                  fullWidth
+                  label="Distance (km)"
+                  type="number"
+                  inputProps={{ min: 0, step: 0.1 }}
+                  value={subscriptionData.distance}
+                  onChange={(e) => setSubscriptionData({ ...subscriptionData, distance: e.target.value })}
+                />
+              </Grid>
+            </Grid>
+
+            {subscriptionData.startDate && subscriptionData.endDate && (
+              <Paper sx={{ p: 2, bgcolor: 'rgba(26, 93, 26, 0.05)', border: '1px solid rgba(26, 93, 26, 0.2)', borderRadius: 2 }}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                  <Typography variant="body2">Milk Cost:</Typography>
+                  <Typography variant="body2" sx={{ fontWeight: 600 }}>₹{calculateSubscriptionTotal().milkTotal}</Typography>
+                </Box>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                  <Typography variant="body2">Duration Delivery Charge (₹15/km/day):</Typography>
+                  <Typography variant="body2" sx={{ fontWeight: 600 }}>₹{calculateSubscriptionTotal().delivery}</Typography>
+                </Box>
+                <Divider sx={{ my: 1 }} />
+                <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <Typography variant="subtitle1" sx={{ fontWeight: 800 }}>Total Amount:</Typography>
+                  <Typography variant="subtitle1" color="primary.main" sx={{ fontWeight: 900 }}>₹{calculateSubscriptionTotal().total}</Typography>
+                </Box>
+              </Paper>
+            )}
+
+            {subscriptionMessage.text && (
+              <Typography color={subscriptionMessage.type === 'error' ? 'error' : 'success.main'} sx={{ fontWeight: 600, textAlign: 'center' }}>
+                {subscriptionMessage.text}
+              </Typography>
+            )}
+          </Box>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, py: 2 }}>
+          <Button onClick={() => setSubscriptionModal({ ...subscriptionModal, open: false })} sx={{ fontWeight: 700 }}>
+            Cancel
+          </Button>
+          <Button onClick={handleSubscriptionSubmit} variant="contained" sx={{ borderRadius: 2, fontWeight: 700 }}>
+            Confirm pre-booking
+          </Button>
         </DialogActions>
       </Dialog>
     </Box>

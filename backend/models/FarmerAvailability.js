@@ -19,13 +19,18 @@ const farmerAvailabilitySchema = new mongoose.Schema({
     date: {
         type: Date,
         default: Date.now
+    },
+    shift: {
+        type: String,
+        enum: ['Morning', 'Evening'],
+        required: true
     }
 }, {
     timestamps: true,
-    collection: 'farmer_availabilities'
+    collection: 'farmer_availabilities_shift'
 });
 
-// Ensure a farmer can only have one availability record per day
-farmerAvailabilitySchema.index({ farmer: 1, date: 1 }, { unique: true });
+// Ensure a farmer can only have one availability record per shift per day
+farmerAvailabilitySchema.index({ farmer: 1, date: 1, shift: 1 }, { unique: true });
 
 module.exports = mongoose.model('FarmerAvailability', farmerAvailabilitySchema);

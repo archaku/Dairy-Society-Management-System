@@ -57,10 +57,13 @@ const normalize = (val, min, max) => {
 router.post('/record', verifyAdmin, async (req, res) => {
     console.log('POST /api/milk/record - Request received');
     try {
-        const { farmerId, quantity, fat, snf, lactose, protein, ph } = req.body;
+        const { farmerId, quantity, fat, snf, lactose, protein, ph, shift } = req.body;
 
         if (!farmerId) {
             return res.status(400).json({ success: false, message: 'Farmer ID is required' });
+        }
+        if (!shift) {
+            return res.status(400).json({ success: false, message: 'Shift is required' });
         }
 
         // Normalization Ranges
@@ -87,7 +90,8 @@ router.post('/record', verifyAdmin, async (req, res) => {
             ph: parseFloat(ph),
             qualityScore: Q,
             pricePerLiter,
-            totalAmount
+            totalAmount,
+            shift
         });
 
         await newRecord.save();
@@ -103,19 +107,9 @@ router.post('/record', verifyAdmin, async (req, res) => {
             await farmer.save();
         }
 
-        // Increment Society Inventory (Atomic)
-        console.log(`Updating Society Inventory: adding ${quantity}L`);
-        const updatedInventory = await SocietyInventory.findOneAndUpdate(
-            {},
-            {
-                $inc: { totalStock: parseFloat(quantity) },
-                $set: { lastUpdated: new Date() }
-            },
-            { upsert: true, new: true, setDefaultsOnInsert: true }
-        );
-
-        console.log('Milk record saved. New Society Stock:', updatedInventory.totalStock);
-        res.status(201).json({ success: true, record: newRecord, stock: updatedInventory.totalStock });
+        // Increment Society Inventory removed to support dynamic tracking
+        console.log('Milk record saved successfully for shift:', shift);
+        res.status(201).json({ success: true, record: newRecord });
     } catch (error) {
         console.error('POST /api/milk Error:', error.message);
         res.status(500).json({ success: false, message: error.message });
