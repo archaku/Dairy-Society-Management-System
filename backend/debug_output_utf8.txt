@@ -1,0 +1,15 @@
+﻿--- Availabilities Calculation ---
+Farmer: sachu, Date: 2026-03-19T18:30:00.000Z, Shift: Morning
+  Avail Start: 2026-03-19T18:30:00.000Z, End: 2026-03-20T18:29:59.999Z
+  Pending Sales Found: 0, Total Pending Qty: 0
+  Final remainingQty: 10
+Farmer: archa, Date: 2026-03-19T18:30:00.000Z, Shift: Morning
+  Avail Start: 2026-03-19T18:30:00.000Z, End: 2026-03-20T18:29:59.999Z
+  Pending Sales Found: 0, Total Pending Qty: 0
+  Final remainingQty: 6
+Farmer: devika, Date: 2026-03-19T18:30:00.000Z, Shift: Morning
+  Avail Start: 2026-03-19T18:30:00.000Z, End: 2026-03-20T18:29:59.999Z
+  Pending Sales Found: 0, Total Pending Qty: 0
+  Final remainingQty: 10
+
+--- Deep Debug: All Pending Sales for Sachu ---

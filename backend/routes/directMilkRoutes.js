@@ -105,6 +105,7 @@ router.get('/farmers', async (req, res) => {
 
         const adjustedAvailabilities = [];
         for (let avail of availabilities) {
+            // Subtract Subscriptions
             const activeSubs = await MilkSubscription.find({
                 farmer: avail.farmer._id,
                 shift: avail.shift,
@@ -114,12 +115,28 @@ router.get('/farmers', async (req, res) => {
             });
             
             const subscribedQty = activeSubs.reduce((sum, sub) => sum + sub.quantityPerDay, 0);
-            const remainingQty = avail.availableQuantity - subscribedQty;
+
+            // Subtract Direct Sales (Pending)
+            // Use availability date start/end to avoid timezone issues
+            const availStart = new Date(avail.date);
+            availStart.setHours(0,0,0,0);
+            const availEnd = new Date(availStart);
+            availEnd.setHours(23,59,59,999);
+
+            const pendingSales = await DirectMilkSale.find({
+                farmer: avail.farmer._id,
+                shift: avail.shift,
+                status: 'pending',
+                date: { $gte: availStart, $lte: availEnd }
+            });
+            const pendingQty = pendingSales.reduce((sum, sale) => sum + sale.quantity, 0);
+
+            const remainingQty = avail.availableQuantity - subscribedQty - pendingQty;
 
             if (remainingQty > 0) {
                 adjustedAvailabilities.push({
                     ...avail.toObject(),
-                    availableQuantity: remainingQty,
+                    availableQuantity: Math.max(0, remainingQty),
                     originalQuantity: avail.availableQuantity
                 });
             }
@@ -167,16 +184,38 @@ router.post('/request', verifyUser, async (req, res) => {
         });
         
         const subscribedQty = activeSubs.reduce((sum, sub) => sum + sub.quantityPerDay, 0);
-        const remainingQty = availability.availableQuantity - subscribedQty;
+
+        // Also subtract pending direct sales
+        const availStart = new Date(availability.date);
+        availStart.setHours(0,0,0,0);
+        const availEnd = new Date(availStart);
+        availEnd.setHours(23,59,59,999);
+
+        const pendingSales = await DirectMilkSale.find({
+            farmer: farmerId,
+            shift,
+            status: 'pending',
+            date: { $gte: availStart, $lte: availEnd }
+        });
+        const pendingQty = pendingSales.reduce((sum, sale) => sum + sale.quantity, 0);
+
+        const remainingQty = availability.availableQuantity - subscribedQty - pendingQty;
 
         if (remainingQty < quantity) {
             return res.status(400).json({
                 success: false,
-                message: `Insufficient milk available. Pre-booked subscriptions reserved stock leaving only ${remainingQty.toFixed(1)}L open for request.`
+                message: `Insufficient milk available. Stock reserved for subscriptions and pending requests leaving only ${remainingQty.toFixed(1)}L open.`
             });
         }
 
         const totalAmount = quantity * availability.pricePerLiter;
+        const isPaid = !!req.body.paymentId;
+
+        if (isPaid) {
+            availability.availableQuantity -= quantity;
+            await availability.save();
+            console.log(`Auto-decremented stock for farmer ${farmerId} by ${quantity}L due to paid request.`);
+        }
 
         console.log(`Creating sale record for user: ${req.userId}, farmer: ${farmerId}`);
         const newSale = new DirectMilkSale({
@@ -185,8 +224,8 @@ router.post('/request', verifyUser, async (req, res) => {
             quantity,
             pricePerLiter: availability.pricePerLiter,
             totalAmount,
-            status: 'pending',
-            paymentStatus: req.body.paymentId ? 'Completed' : 'pending',
+            status: isPaid ? 'approved' : 'pending',
+            paymentStatus: isPaid ? 'Completed' : 'pending',
             paymentId: req.body.paymentId,
             shift
         });

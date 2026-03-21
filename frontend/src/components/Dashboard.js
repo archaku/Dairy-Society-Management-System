@@ -254,6 +254,16 @@ const Dashboard = () => {
     }
   };
 
+  const fetchDirectAvailabilities = async () => {
+    try {
+      const config = { headers: { Authorization: `Bearer ${token}` } };
+      const res = await axios.get('http://localhost:5000/api/direct-milk/farmers', config);
+      setDirectAvailabilities(res.data.availabilities || []);
+    } catch (error) {
+      console.error('Error fetching direct availabilities:', error);
+    }
+  };
+
   const fetchWorkshops = async () => {
     try {
       setLoadingWorkshops(true);
@@ -529,17 +539,19 @@ const Dashboard = () => {
             }, config);
 
             if (verifyRes.data.success) {
-              const response = await axios.post('http://localhost:5000/api/direct-milk/request', {
+              const submissionRes = await axios.post('http://localhost:5000/api/direct-milk/request', {
                 farmerId,
                 quantity: parseFloat(qty),
                 paymentId: response.razorpay_payment_id,
                 shift: shiftVal
               }, config);
 
-              if (response.data.success) {
+              if (submissionRes.data.success) {
                 setDirectSaleMessage({ text: 'Success! Payment done and request sent.', type: 'success' });
+                // Refresh requests AND availabilities (stock)
                 const res = await axios.get('http://localhost:5000/api/direct-milk/user/requests', config);
                 setMyDirectRequests(res.data.requests);
+                fetchDirectAvailabilities();
               }
             }
           } catch (err) {
@@ -1212,7 +1224,7 @@ const Dashboard = () => {
                                       </Box>
                                     ) : (
                                       <Chip
-                                        label={req.status}
+                                        label={req.status === 'approved' && req.paymentStatus === 'Completed' ? 'Paid & Approved' : req.status}
                                         color={req.status === 'approved' ? 'success' : 'error'}
                                         sx={{ fontWeight: 700, textTransform: 'capitalize' }}
                                       />
@@ -1398,60 +1410,83 @@ const Dashboard = () => {
                           <Typography color="text.secondary">No farmers are currently accepting direct sale requests.</Typography>
                         </Box>
                       ) : (
-                        <Grid container spacing={2}>
+                        <Grid container spacing={3} alignItems="stretch">
                           {directAvailabilities.map((avail) => {
                             const qty = getDirectBuyQty(avail._id);
                             const setQty = (v) => setDirectBuyQty(avail._id, typeof v === 'function' ? v(qty) : v);
                             return (
-                              <Grid item xs={12} lg={6} key={avail._id}>
-                                <Card variant="outlined" sx={{ borderRadius: 3, height: '100%' }}>
-                                  <CardContent>
-                                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 2 }}>
+                              <Grid item xs={12} md={6} lg={6} xl={4} key={avail._id} sx={{ display: 'flex' }}>
+                                <Card 
+                                  variant="outlined" 
+                                  sx={{ 
+                                    borderRadius: 4, 
+                                    width: '100%',
+                                    display: 'flex', 
+                                    flexDirection: 'column',
+                                    transition: 'all 0.3s ease',
+                                    '&:hover': { boxShadow: '0 8px 25px rgba(0,0,0,0.1)', borderColor: 'primary.light' }
+                                  }}
+                                >
+                                  <CardContent sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column', p: 3 }}>
+                                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
                                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                                        <Avatar sx={{ bgcolor: 'primary.main', width: 56, height: 56, fontSize: '1.4rem' }}>
+                                        <Avatar sx={{ bgcolor: 'primary.main', width: 60, height: 60, fontSize: '1.5rem', fontWeight: 800 }}>
                                           {avail.farmer?.firstName?.[0] || 'F'}
                                         </Avatar>
                                         <Box>
                                           <Typography variant="h6" sx={{ fontWeight: 800, lineHeight: 1.2 }}>{avail.farmer?.firstName} {avail.farmer?.lastName}</Typography>
-                                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.3 }}>
-                                            <Star size={14} fill="#fbbf24" color="#fbbf24" />
-                                            <Typography variant="body2" sx={{ fontWeight: 700 }}>{avail.farmer?.avgRating?.toFixed(1) || 'New'}</Typography>
+                                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.5 }}>
+                                            <Star size={16} fill="#fbbf24" color="#fbbf24" />
+                                            <Typography variant="body2" sx={{ fontWeight: 700 }}>{avail.farmer?.avgRating?.toFixed(1) || '0.0'}</Typography>
                                           </Box>
                                         </Box>
                                       </Box>
                                       <Box sx={{ textAlign: 'right' }}>
-                                        <Typography variant="h5" sx={{ fontWeight: 900, color: 'primary.main' }}>₹{avail.pricePerLiter}<Typography component="span" variant="caption">/L</Typography></Typography>
-                                        <Typography variant="caption" color="text.secondary" display="block">{avail.availableQuantity} L available</Typography>
-                                        <Chip label={avail.shift} size="small" color="secondary" sx={{ mt: 0.5, fontWeight: 700, height: 20, fontSize: '0.65rem' }} />
+                                        <Typography variant="h5" sx={{ fontWeight: 900, color: 'primary.main', lineHeight: 1 }}>₹{avail.pricePerLiter}<Typography component="span" variant="caption" sx={{ ml: 0.5 }}>/L</Typography></Typography>
+                                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5, fontWeight: 600 }}>{avail.availableQuantity} L available</Typography>
+                                        <Chip label={avail.shift} size="small" color="secondary" sx={{ mt: 1, fontWeight: 700, height: 20, fontSize: '0.65rem' }} />
                                       </Box>
                                     </Box>
-                                    <Divider sx={{ my: 2 }} />
-                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
-                                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                        <IconButton size="small" onClick={() => setQty(q => Math.max(1, q - 1))}><Minus size={14} /></IconButton>
+
+                                    <Divider sx={{ my: 2.5, opacity: 0.6 }} />
+
+                                    <Box sx={{ mt: 'auto' }}>
+                                      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 2, mb: 3, bgcolor: 'rgba(0,0,0,0.02)', py: 1, borderRadius: 3 }}>
+                                        <IconButton 
+                                          size="small" 
+                                          onClick={() => setQty(q => Math.max(1, q - 1))}
+                                          sx={{ bgcolor: 'white', border: '1px solid', borderColor: 'divider' }}
+                                        >
+                                          <Minus size={16} />
+                                        </IconButton>
                                         <TextField
                                           type="number"
                                           size="small"
+                                          variant="standard"
                                           value={qty}
                                           onChange={(e) => setQty(Math.max(1, Math.min(avail.availableQuantity, parseInt(e.target.value) || 1)))}
-                                          inputProps={{ min: 1, max: avail.availableQuantity, style: { textAlign: 'center', width: 50 } }}
-                                          sx={{ '& fieldset': { border: 'none' } }}
+                                          inputProps={{ min: 1, max: avail.availableQuantity, style: { textAlign: 'center', width: 40, fontWeight: 800, fontSize: '1.1rem' } }}
+                                          InputProps={{ disableUnderline: true }}
                                         />
-                                        <IconButton size="small" onClick={() => setQty(q => Math.min(avail.availableQuantity, q + 1))}><Plus size={14} /></IconButton>
+                                        <IconButton 
+                                          size="small" 
+                                          onClick={() => setQty(q => Math.min(avail.availableQuantity, q + 1))}
+                                          sx={{ bgcolor: 'white', border: '1px solid', borderColor: 'divider' }}
+                                        >
+                                          <Plus size={16} />
+                                        </IconButton>
                                       </Box>
-                                      <Box sx={{ display: 'flex', gap: 1, ml: 'auto' }}>
+
+                                      <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1.5 }}>
                                         <Button
                                           variant="outlined"
-                                          size="small"
                                           onClick={() => avail.farmer?._id && fetchFarmerReviews(avail.farmer._id)}
-                                          sx={{ borderRadius: 2 }}
-                                          disabled={!avail.farmer?._id}
+                                          sx={{ borderRadius: 2.5, fontWeight: 700, textTransform: 'none', py: 1 }}
                                         >
                                           Reviews
                                         </Button>
                                         <Button
                                           variant="outlined"
-                                          size="small"
                                           color="secondary"
                                           onClick={() => avail.farmer?._id && setSubscriptionModal({
                                             open: true,
@@ -1462,19 +1497,17 @@ const Dashboard = () => {
                                             shift: avail.shift,
                                             qty
                                           })}
-                                          sx={{ borderRadius: 2, fontWeight: 700 }}
-                                          disabled={!avail.farmer?._id}
+                                          sx={{ borderRadius: 2.5, fontWeight: 700, textTransform: 'none', py: 1 }}
                                         >
                                           Subscribe
                                         </Button>
                                         <Button
                                           variant="contained"
-                                          size="small"
+                                          fullWidth
+                                          sx={{ gridColumn: 'span 2', borderRadius: 2.5, fontWeight: 800, py: 1.2, textTransform: 'none', boxShadow: 'none' }}
                                           onClick={() => avail.farmer?._id && handleDirectPurchaseRequest(avail.farmer._id, qty, avail.pricePerLiter, avail.shift)}
-                                          sx={{ borderRadius: 2, fontWeight: 700 }}
-                                          disabled={!avail.farmer?._id}
                                         >
-                                          Request (₹{(qty * avail.pricePerLiter).toFixed(0)})
+                                          Request Milk (₹{(qty * avail.pricePerLiter).toFixed(0)})
                                         </Button>
                                       </Box>
                                     </Box>
@@ -1513,7 +1546,7 @@ const Dashboard = () => {
                                   />
                                 </Box>
                                 <Typography variant="body2" color="text.secondary">{req.quantity} L · ₹{req.pricePerLiter}/L</Typography>
-                                {req.status === 'approved' && !req.rating && (
+                                {(req.status === 'approved' || req.status === 'delivered') && !req.rating && (
                                   <Button
                                     size="small"
                                     variant="outlined"
@@ -2446,6 +2479,74 @@ const Dashboard = () => {
           </Button>
           <Button onClick={handleSubscriptionSubmit} variant="contained" sx={{ borderRadius: 2, fontWeight: 700 }}>
             Confirm pre-booking
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Farmer Reviews Modal */}
+      <Dialog 
+        open={showReviewsModal} 
+        onClose={() => setShowReviewsModal(false)} 
+        maxWidth="sm" 
+        fullWidth
+        PaperProps={{ sx: { borderRadius: 4, p: 1 } }}
+      >
+        <DialogTitle sx={{ fontWeight: 800, display: 'flex', alignItems: 'center', gap: 1.5, borderBottom: '1px solid', borderColor: 'divider', mb: 1 }}>
+          <Star size={22} color="#fbbf24" fill="#fbbf24" /> Farmer Reviews
+        </DialogTitle>
+        <DialogContent sx={{ py: 2 }}>
+          {myDirectRequests.find(r => r.farmer?._id === farmerReviews.farmerId && (r.status === 'approved' || r.status === 'delivered') && !r.rating) && (
+            <Box sx={{ mb: 3, p: 2, bgcolor: 'primary.light', borderRadius: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: 'white' }}>
+              <Box>
+                <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>Share your experience!</Typography>
+                <Typography variant="caption">You have a recent completed order with this farmer.</Typography>
+              </Box>
+              <Button 
+                variant="contained" 
+                color="secondary" 
+                size="small" 
+                onClick={() => {
+                  const req = myDirectRequests.find(r => r.farmer?._id === farmerReviews.farmerId && (r.status === 'approved' || r.status === 'delivered') && !r.rating);
+                  setFeedbackData({ id: req._id, rating: 5, feedback: '' });
+                  setShowReviewsModal(false);
+                }}
+                sx={{ borderRadius: 2, fontWeight: 800, textTransform: 'none' }}
+              >
+                Rate & Review
+              </Button>
+            </Box>
+          )}
+
+          {farmerReviews.reviews.length === 0 ? (
+            <Box sx={{ textAlign: 'center', py: 6 }}>
+              <Typography color="text.secondary">No reviews yet for this farmer.</Typography>
+            </Box>
+          ) : (
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              {farmerReviews.reviews.map((rev, idx) => (
+                <Box key={idx} sx={{ p: 2, bgcolor: 'rgba(0,0,0,0.02)', borderRadius: 3, border: '1px solid', borderColor: 'divider' }}>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>{rev.user?.firstName} {rev.user?.lastName}</Typography>
+                    <Box sx={{ display: 'flex', gap: 0.5 }}>
+                      {[1, 2, 3, 4, 5].map(s => (
+                        <Star key={s} size={14} fill={s <= rev.rating ? '#fbbf24' : 'none'} color="#fbbf24" />
+                      ))}
+                    </Box>
+                  </Box>
+                  <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>
+                    "{rev.feedback || 'No written feedback provided.'}"
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+                    {new Date(rev.createdAt).toLocaleDateString()}
+                  </Typography>
+                </Box>
+              ))}
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 3 }}>
+          <Button onClick={() => setShowReviewsModal(false)} variant="contained" sx={{ borderRadius: 2, fontWeight: 800 }}>
+            Close
           </Button>
         </DialogActions>
       </Dialog>

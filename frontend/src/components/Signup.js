@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { FaUser, FaLock, FaEnvelope, FaPhone, FaIdCard, FaUserTag, FaSpinner, FaMapMarkerAlt } from 'react-icons/fa';
 import { Milk } from 'lucide-react';
 import { motion } from 'framer-motion';
+import './Signup.css';
 
 const Signup = () => {
   const [formData, setFormData] = useState({
@@ -132,36 +133,55 @@ const Signup = () => {
 
   return (
     <div className="signup-container">
-      <div className="signup-card">
-        <div className="signup-header">
+      <motion.div 
+        className="signup-card"
+        initial={{ opacity: 0, scale: 0.9 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ duration: 0.5, ease: "easeOut" }}
+      >
+        <motion.div 
+          className="signup-header"
+          initial={{ y: -20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ delay: 0.2, duration: 0.5 }}
+        >
           <motion.div 
             className="logo"
             whileHover={{ rotate: 10, scale: 1.1 }}
             whileTap={{ scale: 0.9 }}
-            style={{ 
-              width: '70px', 
-              height: '70px', 
-              margin: '0 auto 20px', 
-              background: 'linear-gradient(135deg, #1a5d1a 0%, #348f34 100%)',
-              borderRadius: '20px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              boxShadow: '0 10px 25px rgba(26, 93, 26, 0.3)',
-              transform: 'rotate(-5deg)'
-            }}
           >
-            <Milk size={34} color="white" />
+            <Milk className="logo-icon" size={38} color="white" />
           </motion.div>
           <h1>Create Account</h1>
           <p className="subtitle">Join Dairy Society Management System</p>
-        </div>
+        </motion.div>
 
         <form onSubmit={handleSubmit} className="signup-form">
-          {error && <div className="error-message">{error}</div>}
-          {success && <div className="success-message">{success}</div>}
+          {error && (
+            <motion.div 
+              className="error-message"
+              initial={{ x: -10, opacity: 0 }}
+              animate={{ x: 0, opacity: 1 }}
+            >
+              {error}
+            </motion.div>
+          )}
+          {success && (
+            <motion.div 
+              className="success-message"
+              initial={{ x: -10, opacity: 0 }}
+              animate={{ x: 0, opacity: 1 }}
+            >
+              {success}
+            </motion.div>
+          )}
 
-          <div className="role-selector">
+          <motion.div 
+            className="role-selector"
+            initial={{ x: -20, opacity: 0 }}
+            animate={{ x: 0, opacity: 1 }}
+            transition={{ delay: 0.25 }}
+          >
             <label>
               <FaUserTag className="input-icon" />
               I want to:
@@ -182,10 +202,15 @@ const Signup = () => {
                 Sell Milk
               </button>
             </div>
-          </div>
+          </motion.div>
 
           <div className="form-row">
-            <div className="form-group">
+            <motion.div 
+              className="form-group"
+              initial={{ x: -20, opacity: 0 }}
+              animate={{ x: 0, opacity: 1 }}
+              transition={{ delay: 0.3 }}
+            >
               <label htmlFor="firstName">
                 First Name *
               </label>
@@ -198,9 +223,14 @@ const Signup = () => {
                 placeholder="First name"
                 required
               />
-            </div>
+            </motion.div>
 
-            <div className="form-group">
+            <motion.div 
+              className="form-group"
+              initial={{ x: -20, opacity: 0 }}
+              animate={{ x: 0, opacity: 1 }}
+              transition={{ delay: 0.35 }}
+            >
               <label htmlFor="lastName">
                 Last Name *
               </label>
@@ -213,10 +243,15 @@ const Signup = () => {
                 placeholder="Last name"
                 required
               />
-            </div>
+            </motion.div>
           </div>
 
-          <div className="form-group">
+          <motion.div 
+            className="form-group"
+            initial={{ x: -20, opacity: 0 }}
+            animate={{ x: 0, opacity: 1 }}
+            transition={{ delay: 0.4 }}
+          >
             <label htmlFor="username">
               <FaUser className="input-icon" />
               Username *
@@ -230,9 +265,14 @@ const Signup = () => {
               placeholder="Choose a username"
               required
             />
-          </div>
+          </motion.div>
 
-          <div className="form-group email-group">
+          <motion.div 
+            className="form-group email-group"
+            initial={{ x: -20, opacity: 0 }}
+            animate={{ x: 0, opacity: 1 }}
+            transition={{ delay: 0.45 }}
+          >
             <label htmlFor="email">
               <FaEnvelope className="input-icon" />
               Email *
@@ -257,10 +297,14 @@ const Signup = () => {
                 {otpLoading ? <FaSpinner className="spinner" /> : (otpSent ? 'Resend' : 'Send OTP')}
               </button>
             </div>
-          </div>
+          </motion.div>
 
           {(otpSent || formData.otp) && (
-            <div className="form-group animate-fade-in">
+            <motion.div 
+              className="form-group animate-fade-in"
+              initial={{ y: -10, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+            >
               <label htmlFor="otp">
                 <FaLock className="input-icon" />
                 Enter OTP *
@@ -275,10 +319,15 @@ const Signup = () => {
                 required
                 maxLength="6"
               />
-            </div>
+            </motion.div>
           )}
 
-          <div className="form-group">
+          <motion.div 
+            className="form-group"
+            initial={{ x: -20, opacity: 0 }}
+            animate={{ x: 0, opacity: 1 }}
+            transition={{ delay: 0.5 }}
+          >
             <label htmlFor="phone">
               <FaPhone className="input-icon" />
               Phone Number *
@@ -292,9 +341,14 @@ const Signup = () => {
               placeholder="10-digit phone number"
               required
             />
-          </div>
+          </motion.div>
 
-          <div className="form-group">
+          <motion.div 
+            className="form-group"
+            initial={{ x: -20, opacity: 0 }}
+            animate={{ x: 0, opacity: 1 }}
+            transition={{ delay: 0.55 }}
+          >
             <label htmlFor="address">
               <FaMapMarkerAlt className="input-icon" />
               Address *
@@ -308,10 +362,15 @@ const Signup = () => {
               placeholder="Enter your detailed address"
               required
             />
-          </div>
+          </motion.div>
 
           {formData.role === 'farmer' && (
-            <div className="form-group">
+            <motion.div 
+              className="form-group"
+              initial={{ x: -20, opacity: 0 }}
+              animate={{ x: 0, opacity: 1 }}
+              transition={{ delay: 0.6 }}
+            >
               <label htmlFor="aadhar">
                 <FaIdCard className="input-icon" />
                 Aadhar Number *
@@ -326,10 +385,15 @@ const Signup = () => {
                 required
                 maxLength="12"
               />
-            </div>
+            </motion.div>
           )}
 
-          <div className="form-group">
+          <motion.div 
+            className="form-group"
+            initial={{ x: -20, opacity: 0 }}
+            animate={{ x: 0, opacity: 1 }}
+            transition={{ delay: 0.65 }}
+          >
             <label htmlFor="password">
               <FaLock className="input-icon" />
               Password *
@@ -344,9 +408,14 @@ const Signup = () => {
               required
               minLength="6"
             />
-          </div>
+          </motion.div>
 
-          <div className="form-group">
+          <motion.div 
+            className="form-group"
+            initial={{ x: -20, opacity: 0 }}
+            animate={{ x: 0, opacity: 1 }}
+            transition={{ delay: 0.7 }}
+          >
             <label htmlFor="confirmPassword">
               <FaLock className="input-icon" />
               Confirm Password *
@@ -360,9 +429,18 @@ const Signup = () => {
               placeholder="Re-enter your password"
               required
             />
-          </div>
+          </motion.div>
 
-          <button type="submit" className="signup-button" disabled={loading}>
+          <motion.button 
+            type="submit" 
+            className="signup-button" 
+            disabled={loading}
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            initial={{ y: 20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            transition={{ delay: 0.75 }}
+          >
             {loading ? (
               <>
                 <FaSpinner className="spinner" /> Creating Account...
@@ -370,18 +448,23 @@ const Signup = () => {
             ) : (
               'Create Account'
             )}
-          </button>
+          </motion.button>
 
-          <div className="signup-footer">
+          <motion.div 
+            className="signup-footer"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.8 }}
+          >
             <p>
               Already have an account?{' '}
               <Link to="/login" className="link">
                 Login here
               </Link>
             </p>
-          </div>
+          </motion.div>
         </form>
-      </div>
+      </motion.div>
     </div>
   );
 };

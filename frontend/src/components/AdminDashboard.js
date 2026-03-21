@@ -349,7 +349,7 @@ const AdminDashboard = () => {
     e.preventDefault();
     const qty = parseFloat(orgSaleFormData.quantity);
     const shiftAvail = orgSaleFormData.shift === 'Morning' ? societyInventory.morningAvailable : societyInventory.eveningAvailable;
-    
+
     if (qty > (shiftAvail || 0)) {
       alert(`Insufficient stock! You only have ${(shiftAvail || 0).toFixed(2)}L available in the ${orgSaleFormData.shift} shift.`);
       return;
@@ -454,13 +454,13 @@ const AdminDashboard = () => {
       let color = "#64748b";
       let icon = <CheckCircle size={20} />;
       const fatVal = parseFloat(fat);
-      if (fatVal >= 4.3) { 
-        label = "Very Good"; 
-        color = "#10b981"; 
+      if (fatVal >= 4.3) {
+        label = "Very Good";
+        color = "#10b981";
         icon = <Star size={20} />;
-      } else if (fatVal >= 4.0) { 
-        label = "Good"; 
-        color = "#3b82f6"; 
+      } else if (fatVal >= 4.0) {
+        label = "Good";
+        color = "#3b82f6";
         icon = <Award size={20} />;
       }
       setQualityIndicator({ label, color, icon, score: Q });
@@ -1065,7 +1065,7 @@ const AdminDashboard = () => {
                                 </CardContent>
                               </Card>
                             </Grid>
-                            
+
                             <Grid item xs={12} md={4} sx={{ display: 'flex', alignItems: 'stretch' }}>
                               <Button
                                 type="submit"
@@ -1262,7 +1262,6 @@ const AdminDashboard = () => {
                           </Box>
                         </Box>
                         <Typography variant="body2" sx={{ opacity: 0.8, mt: 2, maxWidth: 400 }}>
-                          Pool of mixed milk collected from all farmers today. This can be sold in bulk to schools, organizations, or Milma.
                         </Typography>
                       </Grid>
                       <Grid item xs={12} md={5} sx={{ display: 'flex', justifyContent: { md: 'flex-end' }, mt: { xs: 4, md: 0 } }}>
@@ -1462,7 +1461,7 @@ const AdminDashboard = () => {
                         </TableContainer>
                       </Paper>
                     </Grid>
-                    
+
                     {/* Farmer Deliveries Table */}
                     <Grid item xs={12} lg={4}>
                       <Paper sx={{ p: 2, borderRadius: 4, height: '100%', display: 'flex', flexDirection: 'column' }}>
