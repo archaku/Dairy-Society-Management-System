@@ -41,24 +41,24 @@ const verifyUser = async (req, res, next) => {
 };
 
 // @route   POST /api/direct-milk/availability
-// @desc    Farmer registers milk availability for the day
+// @desc    Farmer registers milk availability for a specific day
 router.post('/availability', verifyFarmer, async (req, res) => {
     try {
         console.log(`Updating availability for farmer: ${req.farmerId}`);
-        const { availableQuantity, pricePerLiter, shift } = req.body;
+        const { availableQuantity, pricePerLiter, shift, date } = req.body;
         console.log('Request body:', req.body);
 
         if (!shift) {
             return res.status(400).json({ success: false, message: 'Shift is required' });
         }
 
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        today.setMilliseconds(0);
+        const targetDate = date ? new Date(date) : new Date();
+        targetDate.setHours(0, 0, 0, 0);
+        targetDate.setMilliseconds(0);
 
         let availability = await FarmerAvailability.findOne({
             farmer: req.farmerId,
-            date: today,
+            date: targetDate,
             shift
         });
 
@@ -68,12 +68,12 @@ router.post('/availability', verifyFarmer, async (req, res) => {
             availability.pricePerLiter = pricePerLiter;
             await availability.save();
         } else {
-            console.log('Creating new availability record for today and shift:', shift);
+            console.log('Creating new availability record for date and shift:', targetDate, shift);
             availability = new FarmerAvailability({
                 farmer: req.farmerId,
                 availableQuantity,
                 pricePerLiter,
-                date: today,
+                date: targetDate,
                 shift
             });
             await availability.save();
@@ -86,17 +86,37 @@ router.post('/availability', verifyFarmer, async (req, res) => {
     }
 });
 
+// @route   GET /api/direct-milk/availability
+// @desc    Farmer gets their own availability for a specific date
+router.get('/availability', verifyFarmer, async (req, res) => {
+    try {
+        const { date } = req.query;
+        const targetDate = date ? new Date(date) : new Date();
+        targetDate.setHours(0, 0, 0, 0);
+
+        const availabilities = await FarmerAvailability.find({
+            farmer: req.farmerId,
+            date: targetDate
+        });
+
+        res.json({ success: true, availabilities });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
 // @route   GET /api/direct-milk/farmers
-// @desc    List farmers who have registered availability for today
+// @desc    List farmers who have registered availability for a specific date
 router.get('/farmers', async (req, res) => {
     try {
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
+        const { date } = req.query;
+        const targetDate = date ? new Date(date) : new Date();
+        targetDate.setHours(0, 0, 0, 0);
 
         const MilkSubscription = require('../models/MilkSubscription');
 
         let availabilities = await FarmerAvailability.find({
-            date: { $gte: today },
+            date: targetDate,
             availableQuantity: { $gt: 0 }
         }).populate('farmer', 'firstName lastName username phone address avgRating totalReviews avgQualityScore');
 
@@ -110,8 +130,8 @@ router.get('/farmers', async (req, res) => {
                 farmer: avail.farmer._id,
                 shift: avail.shift,
                 status: 'active',
-                startDate: { $lte: new Date(today.getTime() + 86400000 - 1) },
-                endDate: { $gte: today }
+                startDate: { $lte: new Date(targetDate.getTime() + 86400000 - 1) },
+                endDate: { $gte: targetDate }
             });
             
             const subscribedQty = activeSubs.reduce((sum, sub) => sum + sub.quantityPerDay, 0);
@@ -152,25 +172,25 @@ router.get('/farmers', async (req, res) => {
 // @desc    User initiates a purchase request
 router.post('/request', verifyUser, async (req, res) => {
     try {
-        const { farmerId, quantity, shift } = req.body;
+        const { farmerId, quantity, shift, date } = req.body;
 
         if (!shift) {
             return res.status(400).json({ success: false, message: 'Shift is required' });
         }
 
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
+        const targetDate = date ? new Date(date) : new Date();
+        targetDate.setHours(0, 0, 0, 0);
 
         const availability = await FarmerAvailability.findOne({
             farmer: farmerId,
-            date: { $gte: today },
+            date: targetDate,
             shift
         });
 
         if (!availability) {
             return res.status(400).json({
                 success: false,
-                message: 'No availability found from this farmer today.'
+                message: `No availability found from this farmer for ${targetDate.toLocaleDateString()}.`
             });
         }
 
@@ -179,8 +199,8 @@ router.post('/request', verifyUser, async (req, res) => {
             farmer: farmerId,
             shift,
             status: 'active',
-            startDate: { $lte: new Date(today.getTime() + 86400000 - 1) },
-            endDate: { $gte: today }
+            startDate: { $lte: new Date(targetDate.getTime() + 86400000 - 1) },
+            endDate: { $gte: targetDate }
         });
         
         const subscribedQty = activeSubs.reduce((sum, sub) => sum + sub.quantityPerDay, 0);
@@ -227,7 +247,8 @@ router.post('/request', verifyUser, async (req, res) => {
             status: isPaid ? 'approved' : 'pending',
             paymentStatus: isPaid ? 'Completed' : 'pending',
             paymentId: req.body.paymentId,
-            shift
+            shift,
+            date: targetDate
         });
 
         await newSale.save();
@@ -311,12 +332,13 @@ router.put('/farmer/action/:id', verifyFarmer, async (req, res) => {
         }
 
         if (action === 'approved') {
-            // Deduct from availability
-            const today = new Date();
-            today.setHours(0, 0, 0, 0);
+            // Deduct from availability for the specific date of the sale
+            const targetDate = new Date(sale.date);
+            targetDate.setHours(0, 0, 0, 0);
+
             const availability = await FarmerAvailability.findOne({
                 farmer: sale.farmer,
-                date: { $gte: today },
+                date: targetDate,
                 shift: sale.shift
             });
 
@@ -421,6 +443,36 @@ router.get('/subscription-farmers', async (req, res) => {
     try {
         const farmers = await Farmer.find({ offersSubscription: true, isActive: true })
             .select('firstName lastName address phone avgRating totalReviews subscriptionMilkRate subscriptionDeliveryRange');
+            
+        res.json({ success: true, farmers });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+// @route   POST /api/direct-milk/prebooking-settings
+// @desc    Update farmer's pre-booking offering settings
+router.post('/prebooking-settings', verifyFarmer, async (req, res) => {
+    try {
+        const { offersPreBooking, preBookingMilkRate, preBookingDeliveryRange } = req.body;
+        
+        await Farmer.findByIdAndUpdate(req.farmerId, { 
+            offersPreBooking, 
+            preBookingMilkRate: Number(preBookingMilkRate) || 0, 
+            preBookingDeliveryRange: Number(preBookingDeliveryRange) || 0 
+        });
+        res.json({ success: true, message: 'Pre-booking settings updated successfully' });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+// @route   GET /api/direct-milk/prebooking-farmers
+// @desc    Get all farmers who offer pre-bookings
+router.get('/prebooking-farmers', async (req, res) => {
+    try {
+        const farmers = await Farmer.find({ offersPreBooking: true, isActive: true })
+            .select('firstName lastName address phone avgRating totalReviews preBookingMilkRate preBookingDeliveryRange');
             
         res.json({ success: true, farmers });
     } catch (error) {

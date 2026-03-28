@@ -106,7 +106,75 @@ router.get('/farmer', verifyFarmer, async (req, res) => {
             { $sort: { "_id": 1 } }
         ]);
 
-        // 2. Quality Benchmark (Individual avg vs Society avg)
+        // 2. Direct Milk Sales Income
+        const DirectMilkSale = require('../models/DirectMilkSale');
+        const directSalesTracker = await DirectMilkSale.aggregate([
+            {
+                $match: {
+                    farmer: new mongoose.Types.ObjectId(req.farmerId),
+                    status: { $in: ['approved', 'delivered'] },
+                    createdAt: { $gte: sixMonthsAgo }
+                }
+            },
+            {
+                $group: {
+                    _id: { $dateToString: { format: "%Y-%m", date: "$createdAt" } },
+                    earnings: { $sum: "$totalAmount" },
+                    quantity: { $sum: "$quantity" }
+                }
+            }
+        ]);
+
+        // Merge both arrays by month _id
+        const mergedIncome = {};
+        incomeTracker.forEach(item => {
+            mergedIncome[item._id] = { earnings: item.earnings, quantity: item.quantity };
+        });
+        
+        directSalesTracker.forEach(item => {
+            if (mergedIncome[item._id]) {
+                mergedIncome[item._id].earnings += item.earnings;
+                mergedIncome[item._id].quantity += item.quantity;
+            } else {
+                mergedIncome[item._id] = { earnings: item.earnings, quantity: item.quantity };
+            }
+        });
+
+        // 3. Milk Subscriptions Income
+        const MilkSubscription = require('../models/MilkSubscription');
+        const subscriptionTracker = await MilkSubscription.aggregate([
+            {
+                $match: {
+                    farmer: new mongoose.Types.ObjectId(req.farmerId),
+                    status: { $in: ['active', 'completed'] },
+                    createdAt: { $gte: sixMonthsAgo }
+                }
+            },
+            {
+                $group: {
+                    _id: { $dateToString: { format: "%Y-%m", date: "$createdAt" } },
+                    earnings: { $sum: "$totalAmount" },
+                    quantity: { $sum: { $multiply: ["$quantityPerDay", 30] } } // estimate for a month
+                }
+            }
+        ]);
+
+        subscriptionTracker.forEach(item => {
+            if (mergedIncome[item._id]) {
+                mergedIncome[item._id].earnings += item.earnings;
+                mergedIncome[item._id].quantity += item.quantity;
+            } else {
+                mergedIncome[item._id] = { earnings: item.earnings, quantity: item.quantity };
+            }
+        });
+        
+        const finalIncomeTracker = Object.keys(mergedIncome).map(key => ({
+            _id: key,
+            earnings: mergedIncome[key].earnings,
+            quantity: mergedIncome[key].quantity
+        })).sort((a, b) => a._id.localeCompare(b._id));
+
+        // 4. Quality Benchmark (Individual avg vs Society avg)
         const farmer = await Farmer.findById(req.farmerId);
         const societyAvg = await Farmer.aggregate([
             { $match: { totalMilkRecords: { $gt: 0 } } },
@@ -114,18 +182,18 @@ router.get('/farmer', verifyFarmer, async (req, res) => {
         ]);
 
         const benchmark = {
-            farmerAvg: farmer.avgQualityScore || 0,
+            farmerAvg: farmer?.avgQualityScore || 0,
             societyAvg: societyAvg[0]?.avg || 0,
-            isAboveAverage: (farmer.avgQualityScore || 0) > (societyAvg[0]?.avg || 0)
+            isAboveAverage: (farmer?.avgQualityScore || 0) > (societyAvg[0]?.avg || 0)
         };
 
         res.json({
             success: true,
-            income: incomeTracker,
+            income: finalIncomeTracker,
             benchmark,
             rating: {
-                average: farmer.avgRating || 0,
-                count: farmer.totalReviews || 0
+                average: farmer?.avgRating || 0,
+                count: farmer?.totalReviews || 0
             }
         });
     } catch (error) {

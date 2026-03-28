@@ -79,6 +79,18 @@ const farmerSchema = new mongoose.Schema({
     type: Number,
     default: 5 // max km
   },
+  offersPreBooking: {
+    type: Boolean,
+    default: false
+  },
+  preBookingMilkRate: {
+    type: Number,
+    default: 50
+  },
+  preBookingDeliveryRange: {
+    type: Number,
+    default: 5 // max km
+  },
   isActive: {
     type: Boolean,
     default: true

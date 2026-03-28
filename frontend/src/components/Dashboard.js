@@ -60,6 +60,11 @@ const Dashboard = () => {
   const [subscriptionDeliveryRange, setSubscriptionDeliveryRange] = React.useState(5);
   const [subscriptionFarmers, setSubscriptionFarmers] = React.useState([]);
   const [deliveryChargeMessage, setDeliveryChargeMessage] = React.useState({ text: '', type: '' });
+  const [offersPreBooking, setOffersPreBooking] = React.useState(false);
+  const [preBookingMilkRate, setPreBookingMilkRate] = React.useState(50);
+  const [preBookingDeliveryRange, setPreBookingDeliveryRange] = React.useState(5);
+  const [preBookingFarmers, setPreBookingFarmers] = React.useState([]);
+  const [preBookingMessage, setPreBookingMessage] = React.useState({ text: '', type: '' });
   const [subscriptionModal, setSubscriptionModal] = React.useState({
     open: false,
     farmerId: null,
@@ -90,6 +95,8 @@ const Dashboard = () => {
   const [sortConfig, setSortConfig] = React.useState({ key: 'date', direction: 'desc' });
   const [directBuyQtys, setDirectBuyQtys] = React.useState({});
   const [supplementOrders, setSupplementOrders] = React.useState([]);
+  const [browseDate, setBrowseDate] = React.useState(new Date().toISOString().split('T')[0]);
+  const [farmerDate, setFarmerDate] = React.useState(new Date().toISOString().split('T')[0]);
 
   const getDirectBuyQty = (id) => directBuyQtys[id] || 1;
   const setDirectBuyQty = (id, val) => setDirectBuyQtys(prev => ({ ...prev, [id]: val }));
@@ -169,7 +176,8 @@ const Dashboard = () => {
           user?.role === 'user' ? axios.get('http://localhost:5000/api/subscriptions/user', config) : Promise.resolve({ data: { subscriptions: [] } }),
           user?.role === 'farmer' ? axios.get('http://localhost:5000/api/subscriptions/farmer/today', config) : Promise.resolve({ data: { schedule: [] } }),
           user?.role === 'farmer' ? axios.get('http://localhost:5000/api/subscriptions/farmer/requests', config) : Promise.resolve({ data: { requests: [] } }),
-          user?.role === 'user' ? axios.get('http://localhost:5000/api/direct-milk/subscription-farmers', config) : Promise.resolve({ data: { farmers: [] } })
+          user?.role === 'user' ? axios.get('http://localhost:5000/api/direct-milk/subscription-farmers', config) : Promise.resolve({ data: { farmers: [] } }),
+          user?.role === 'user' ? axios.get('http://localhost:5000/api/direct-milk/prebooking-farmers', config) : Promise.resolve({ data: { farmers: [] } })
         ]);
 
         setMilkRecords(milkRes.data.records || []);
@@ -179,6 +187,9 @@ const Dashboard = () => {
             setOffersSubscription(user.offersSubscription || false);
             setSubscriptionMilkRate(user.subscriptionMilkRate || 50);
             setSubscriptionDeliveryRange(user.subscriptionDeliveryRange || 5);
+            setOffersPreBooking(user.offersPreBooking || false);
+            setPreBookingMilkRate(user.preBookingMilkRate || 50);
+            setPreBookingDeliveryRange(user.preBookingDeliveryRange || 5);
         }
         setWorkshops(workshopRes.data.workshops || []);
         setSupplements(supplementRes.data.supplements || []);
@@ -190,6 +201,7 @@ const Dashboard = () => {
         setFarmerDeliveriesToday(farmerDeliveriesRes.data.schedule || []);
         setFarmerPendingSubscriptions(farmerPendingSubsRes.data.requests || []);
         setSubscriptionFarmers(subscriptionFarmersRes.data.farmers || []);
+        setPreBookingFarmers(prebookingFarmersRes.data.farmers || []);
 
         if (analyticsRes && analyticsRes.data) {
           setAnalyticsData({
@@ -254,10 +266,11 @@ const Dashboard = () => {
     }
   };
 
-  const fetchDirectAvailabilities = async () => {
+  const fetchDirectAvailabilities = async (selectedDate) => {
     try {
       const config = { headers: { Authorization: `Bearer ${token}` } };
-      const res = await axios.get('http://localhost:5000/api/direct-milk/farmers', config);
+      const dateToFetch = selectedDate || browseDate;
+      const res = await axios.get(`http://localhost:5000/api/direct-milk/farmers?date=${dateToFetch}`, config);
       setDirectAvailabilities(res.data.availabilities || []);
     } catch (error) {
       console.error('Error fetching direct availabilities:', error);
@@ -493,12 +506,12 @@ const Dashboard = () => {
       await axios.post('http://localhost:5000/api/direct-milk/availability', {
         availableQuantity: qty,
         pricePerLiter: price,
-        shift: farmerShift
+        shift: farmerShift,
+        date: farmerDate
       }, config);
       setDirectSaleMessage({ text: 'Availability updated successfully!', type: 'success' });
       // Refresh direct availabilities after update
-      const directAvailRes = await axios.get('http://localhost:5000/api/direct-milk/farmers', config);
-      setDirectAvailabilities(directAvailRes.data.availabilities || []);
+      fetchDirectAvailabilities();
     } catch (error) {
       console.error('Direct milk availability update error:', error);
       const errorMsg = error.response?.data?.message || 'Failed to update availability';
@@ -543,7 +556,8 @@ const Dashboard = () => {
                 farmerId,
                 quantity: parseFloat(qty),
                 paymentId: response.razorpay_payment_id,
-                shift: shiftVal
+                shift: shiftVal,
+                date: browseDate
               }, config);
 
               if (submissionRes.data.success) {
@@ -620,10 +634,25 @@ const Dashboard = () => {
   };
 
   React.useEffect(() => {
-    if (user?.role === 'admin') {
-      navigate('/admin-dashboard');
-    }
-  }, [user, navigate]);
+    const fetchMyAvailability = async () => {
+      if (user?.role !== 'farmer') return;
+      try {
+        const config = { headers: { Authorization: `Bearer ${token}` } };
+        const res = await axios.get(`http://localhost:5000/api/direct-milk/availability?date=${farmerDate}`, config);
+        const myAvail = res.data.availabilities?.find(a => a.shift === farmerShift);
+        if (myAvail) {
+          setFarmerAvailQty(myAvail.availableQuantity);
+          setFarmerPrice(myAvail.pricePerLiter);
+        } else {
+          setFarmerAvailQty('');
+          setFarmerPrice(50);
+        }
+      } catch (error) {
+        console.error('Error fetching my availability:', error);
+      }
+    };
+    fetchMyAvailability();
+  }, [farmerDate, farmerShift, user, token]);
 
   const getRoleIcon = () => {
     switch (user?.role) {
@@ -1049,6 +1078,18 @@ const Dashboard = () => {
                         <Grid container spacing={2}>
                           <Grid item xs={12}>
                             <TextField
+                                fullWidth
+                                label="Availability Date"
+                                type="date"
+                                value={farmerDate}
+                                onChange={(e) => setFarmerDate(e.target.value)}
+                                required
+                                InputLabelProps={{ shrink: true }}
+                                sx={{ mb: 1 }}
+                            />
+                          </Grid>
+                          <Grid item xs={12}>
+                            <TextField
                               fullWidth
                               label="Available Quantity (Liters)"
                               type="number"
@@ -1133,7 +1174,7 @@ const Dashboard = () => {
                           }
                       }}>
                         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2, p: 2, bgcolor: 'rgba(0,0,0,0.02)', borderRadius: 2 }}>
-                          <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>Enable Pre-bookings?</Typography>
+                          <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>Enable Subscriptions?</Typography>
                           <Switch 
                             checked={offersSubscription} 
                             onChange={(e) => setOffersSubscription(e.target.checked)} 
@@ -1188,6 +1229,87 @@ const Dashboard = () => {
                     </Paper>
                   </Grid>
 
+                  {/* Pre-booking Settings */}
+                  <Grid item xs={12} md={6}>
+                    <Paper sx={{ p: 4, borderRadius: 4, height: '100%', boxShadow: '0 4px 20px rgba(0,0,0,0.05)', border: '1px solid', borderColor: 'divider' }}>
+                      <Typography variant="h6" sx={{ fontWeight: 700, mb: 3, display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                        <Calendar size={22} color={theme.palette.secondary.main} /> Pre-booking Settings
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+                        Activate pre-booking offerings to allow customers to request milk in advance for upcoming dates.
+                      </Typography>
+                      <Box component="form" onSubmit={async (e) => {
+                          e.preventDefault();
+                          try {
+                            const config = { headers: { Authorization: `Bearer ${token}` } };
+                            await axios.post('http://localhost:5000/api/direct-milk/prebooking-settings', { 
+                                offersPreBooking, 
+                                preBookingMilkRate, 
+                                preBookingDeliveryRange 
+                            }, config);
+                            setPreBookingMessage({ text: 'Pre-booking settings synced securely', type: 'success' });
+                            setTimeout(() => setPreBookingMessage({ text: '', type: '' }), 3000);
+                          } catch (err) {
+                            setPreBookingMessage({ text: err.response?.data?.message || 'Error updating settings', type: 'error' });
+                          }
+                      }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2, p: 2, bgcolor: 'rgba(0,0,0,0.02)', borderRadius: 2 }}>
+                          <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>Enable Pre-bookings?</Typography>
+                          <Switch 
+                            checked={offersPreBooking} 
+                            onChange={(e) => setOffersPreBooking(e.target.checked)} 
+                            color="success" 
+                          />
+                        </Box>
+                        {offersPreBooking && (
+                          <>
+                            <TextField
+                              fullWidth
+                              label="Milk Rate per Liter (₹)"
+                              type="number"
+                              inputProps={{ step: 1, min: 1 }}
+                              value={preBookingMilkRate}
+                              onChange={(e) => setPreBookingMilkRate(e.target.value)}
+                              required
+                              InputProps={{ startAdornment: <InputAdornment position="start">₹</InputAdornment> }}
+                              sx={{ mb: 2 }}
+                            />
+                            <TextField
+                              fullWidth
+                              label="Maximum Delivery Radius (km)"
+                              type="number"
+                              inputProps={{ step: 1, min: 1 }}
+                              value={preBookingDeliveryRange}
+                              onChange={(e) => setPreBookingDeliveryRange(e.target.value)}
+                              required
+                              InputProps={{ endAdornment: <InputAdornment position="end">km</InputAdornment> }}
+                              sx={{ mb: 2 }}
+                            />
+                          </>
+                        )}
+                        <Button
+                          fullWidth
+                          variant="contained"
+                          type="submit"
+                          size="large"
+                          color="secondary"
+                          sx={{ py: 1.5, borderRadius: 3, fontWeight: 800 }}
+                        >
+                          Save Settings
+                        </Button>
+                        {preBookingMessage.text && (
+                          <Typography
+                            variant="body2"
+                            color={preBookingMessage.type === 'error' ? 'error' : 'success.main'}
+                            sx={{ mt: 2, textAlign: 'center', fontWeight: 600 }}
+                          >
+                            {preBookingMessage.text}
+                          </Typography>
+                        )}
+                      </Box>
+                    </Paper>
+                  </Grid>
+
                   {/* Incoming Requests */}
                   <Grid item xs={12}>
                     <Paper sx={{ p: 3, borderRadius: 4, boxShadow: '0 4px 20px rgba(0,0,0,0.05)', border: '1px solid', borderColor: 'divider' }}>
@@ -1209,7 +1331,8 @@ const Dashboard = () => {
                                     <Typography variant="body2" color="text.secondary">{req.userId?.phone || ''}</Typography>
                                     <Box sx={{ mt: 1 }}>
                                       <Chip label={`${req.quantity} L requested`} size="small" color="primary" sx={{ mr: 1, fontWeight: 700 }} />
-                                      <Chip label={`₹${req.pricePerLiter}/L`} size="small" color="success" sx={{ fontWeight: 700 }} />
+                                      <Chip label={`₹${req.pricePerLiter}/L`} size="small" color="success" sx={{ mr: 1, fontWeight: 700 }} />
+                                      <Chip label={new Date(req.date).toLocaleDateString()} size="small" variant="outlined" sx={{ fontWeight: 700 }} />
                                     </Box>
                                   </Box>
                                   <Box>
@@ -1400,11 +1523,88 @@ const Dashboard = () => {
                       )}
                     </Paper>
 
+                    {/* Pre-booking Providers */}
+                    <Paper sx={{ p: 3, borderRadius: 4, mb: 3, boxShadow: '0 4px 20px rgba(0,0,0,0.05)', border: '1px solid', borderColor: 'divider', bgcolor: 'rgba(56, 189, 248, 0.02)' }}>
+                      <Typography variant="h6" sx={{ fontWeight: 700, mb: 3, display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                        <Calendar size={22} color={theme.palette.info.main} /> Pre-booking Providers
+                      </Typography>
+                      {preBookingFarmers.length === 0 ? (
+                        <Box sx={{ textAlign: 'center', py: 4 }}>
+                          <Typography color="text.secondary">No farmers are currently offering pre-bookings directly.</Typography>
+                        </Box>
+                      ) : (
+                        <Grid container spacing={2}>
+                          {preBookingFarmers.map((farmer) => (
+                            <Grid item xs={12} lg={6} key={farmer._id}>
+                              <Card variant="outlined" sx={{ borderRadius: 3, height: '100%', borderLeft: '4px solid #38bdf8' }}>
+                                <CardContent>
+                                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 2 }}>
+                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                                      <Avatar sx={{ bgcolor: 'info.main', width: 56, height: 56, fontSize: '1.4rem' }}>
+                                        {farmer.firstName?.[0] || 'F'}
+                                      </Avatar>
+                                      <Box>
+                                        <Typography variant="h6" sx={{ fontWeight: 800, lineHeight: 1.2 }}>{farmer.firstName} {farmer.lastName}</Typography>
+                                        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>{farmer.address}</Typography>
+                                      </Box>
+                                    </Box>
+                                    <Box sx={{ textAlign: 'right' }}>
+                                      <Typography variant="h6" sx={{ fontWeight: 900, color: 'info.main' }}>₹{farmer.preBookingMilkRate}<Typography component="span" variant="caption">/L</Typography></Typography>
+                                      <Chip label={`Max Range: ${farmer.preBookingDeliveryRange} km`} size="small" variant="outlined" sx={{ mt: 0.5, fontWeight: 700, fontSize: '0.65rem' }} />
+                                    </Box>
+                                  </Box>
+                                  <Divider sx={{ my: 2 }} />
+                                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                      <Star size={16} fill="#fbbf24" color="#fbbf24" />
+                                      <Typography variant="body2" sx={{ fontWeight: 700 }}>{farmer.avgRating?.toFixed(1) || '0.0'}</Typography>
+                                      <Typography variant="caption" color="text.secondary">({farmer.totalReviews} reviews)</Typography>
+                                    </Box>
+                                    <Button
+                                      variant="outlined"
+                                      size="small"
+                                      color="info"
+                                      onClick={() => {
+                                        // A simple focus on the date picker element
+                                        const dateField = document.getElementById('browse-date-picker');
+                                        if(dateField) {
+                                          dateField.focus();
+                                          dateField.showPicker?.();
+                                        }
+                                      }}
+                                      sx={{ borderRadius: 2, fontWeight: 700 }}
+                                    >
+                                      Pick Date Below
+                                    </Button>
+                                  </Box>
+                                </CardContent>
+                              </Card>
+                            </Grid>
+                          ))}
+                        </Grid>
+                      )}
+                    </Paper>
+
                     {/* Available Farmers */}
                     <Paper sx={{ p: 3, borderRadius: 4, boxShadow: '0 4px 20px rgba(0,0,0,0.05)', border: '1px solid', borderColor: 'divider' }}>
-                      <Typography variant="h6" sx={{ fontWeight: 700, mb: 3, display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                        <Sprout size={22} color={theme.palette.primary.main} /> Local Farmers
-                      </Typography>
+                      <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
+                        <Typography variant="h6" sx={{ fontWeight: 700, display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                          <Sprout size={22} color={theme.palette.primary.main} /> Local Farmers
+                        </Typography>
+                        <TextField
+                          id="browse-date-picker"
+                          label="Select Date"
+                          type="date"
+                          size="small"
+                          value={browseDate}
+                          onChange={(e) => {
+                            setBrowseDate(e.target.value);
+                            fetchDirectAvailabilities(e.target.value);
+                          }}
+                          InputLabelProps={{ shrink: true }}
+                          sx={{ minWidth: 200 }}
+                        />
+                      </Box>
                       {directAvailabilities.length === 0 ? (
                         <Box sx={{ textAlign: 'center', py: 6 }}>
                           <Typography color="text.secondary">No farmers are currently accepting direct sale requests.</Typography>
@@ -1545,7 +1745,7 @@ const Dashboard = () => {
                                     sx={{ fontWeight: 700, textTransform: 'capitalize' }}
                                   />
                                 </Box>
-                                <Typography variant="body2" color="text.secondary">{req.quantity} L · ₹{req.pricePerLiter}/L</Typography>
+                                <Typography variant="body2" color="text.secondary">{req.quantity} L · ₹{req.pricePerLiter}/L · {new Date(req.date).toLocaleDateString()}</Typography>
                                 {(req.status === 'approved' || req.status === 'delivered') && !req.rating && (
                                   <Button
                                     size="small"
