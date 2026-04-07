@@ -768,16 +768,19 @@ const AdminDashboard = () => {
     return matchesSearch && matchesDate;
   }), sortConfig);
 
+  const unhandledCustomerOrders = purchases.filter(p => p.status === 'pending').length;
+  const unhandledFeedOrders = supplementOrders.filter(o => o.status === 'pending').length;
+
   const menuItems = [
     { id: 'users', label: 'System Users', icon: <Users size={20} /> },
     { id: 'farmers', label: 'Farmers', icon: <Award size={20} /> },
     { id: 'milk', label: 'Milk Records', icon: <Milk size={20} /> },
-    { id: 'sales', label: 'Customer Orders', icon: <ShoppingCart size={20} /> },
+    { id: 'sales', label: 'Customer Orders', icon: <ShoppingCart size={20} />, badge: unhandledCustomerOrders },
     { id: 'collect', label: 'Collect Milk', icon: <Plus size={20} /> },
     { id: 'workshops', label: 'Workshops', icon: <Calendar size={20} /> },
     { id: 'supplements', label: 'Supplements', icon: <Sprout size={20} /> },
     { id: 'society', label: 'Society Stock', icon: <Building2 size={20} /> },
-    { id: 'feed-orders', label: 'Feed Orders', icon: <Package size={20} /> },
+    { id: 'feed-orders', label: 'Feed Orders', icon: <Package size={20} />, badge: unhandledFeedOrders },
     { id: 'analysis', label: 'Record Analysis', icon: <BarChart3 size={20} /> },
   ];
 
@@ -811,7 +814,16 @@ const AdminDashboard = () => {
                 {item.icon}
               </ListItemIcon>
               <ListItemText
-                primary={item.label}
+                primary={
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    {item.label}
+                    {item.badge > 0 && (
+                      <Box sx={{ bgcolor: '#ef4444', color: 'white', px: 1, py: 0.25, borderRadius: 4, fontSize: '0.75rem', fontWeight: 800 }}>
+                        {item.badge}
+                      </Box>
+                    )}
+                  </Box>
+                }
                 primaryTypographyProps={{
                   fontSize: '0.9rem',
                   fontWeight: activeTab === item.id ? 700 : 500

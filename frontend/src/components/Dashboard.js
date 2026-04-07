@@ -1007,17 +1007,20 @@ const Dashboard = () => {
     }
   };
 
+  const farmerActionNeededCount = farmerDirectRequests.filter(r => r.status === 'pending').length + farmerPendingSubscriptions.length + farmerDeliveriesToday.filter(d => d.deliveryStatus === 'pending').length;
+  const userActionNeededCount = myDirectRequests.filter(r => r.status === 'approved' && r.paymentStatus === 'pending').length;
+
   const menuItems = user?.role === 'farmer' ? [
     { id: 'profile', label: 'My Profile', icon: <User size={20} /> },
     { id: 'history', label: 'Transaction Ledger', icon: <History size={20} /> },
     { id: 'feed', label: 'Cattle Feed Shop', icon: <Leaf size={20} /> },
-    { id: 'direct-manage', label: 'Direct Sales', icon: <Droplets size={20} /> },
+    { id: 'direct-manage', label: 'Direct Sales', icon: <Droplets size={20} />, badge: farmerActionNeededCount },
     { id: 'analytics', label: 'Performance', icon: <ChartBar size={20} /> },
   ] : [
     { id: 'profile', label: 'My Profile', icon: <User size={20} /> },
     { id: 'purchase', label: 'Society Milk', icon: <ShoppingCart size={20} /> },
     { id: 'my-purchases', label: 'History & Invoices', icon: <History size={20} /> },
-    { id: 'direct-buy', label: 'Local Farmers', icon: <Droplets size={20} /> },
+    { id: 'direct-buy', label: 'Local Farmers', icon: <Droplets size={20} />, badge: userActionNeededCount },
   ];
 
   const drawer = (
@@ -1058,7 +1061,16 @@ const Dashboard = () => {
                 {item.icon}
               </ListItemIcon>
               <ListItemText 
-                primary={item.label} 
+                primary={
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    {item.label}
+                    {item.badge > 0 && (
+                      <Box sx={{ bgcolor: 'error.main', color: 'white', px: 1, py: 0.25, borderRadius: 4, fontSize: '0.75rem', fontWeight: 800 }}>
+                        {item.badge}
+                      </Box>
+                    )}
+                  </Box>
+                } 
                 primaryTypographyProps={{ fontSize: '0.95rem', fontWeight: activeTab === item.id ? 700 : 500 }} 
               />
               {activeTab === item.id && <ChevronRight size={16} />}
@@ -1678,6 +1690,140 @@ const Dashboard = () => {
               {/* Local Farmers Browser (Customer) */}
               {activeTab === 'direct-buy' && (
                 <Grid container spacing={3}>
+                    {/* Available Farmers */}
+                    <Paper sx={{ p: 3, borderRadius: 4, boxShadow: '0 4px 20px rgba(0,0,0,0.05)', border: '1px solid', borderColor: 'divider' }}>
+                      <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
+                        <Typography variant="h6" sx={{ fontWeight: 700, display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                          <Sprout size={22} color={theme.palette.primary.main} /> Local Farmers
+                        </Typography>
+                        <TextField
+                          id="browse-date-picker"
+                          label="Select Date"
+                          type="date"
+                          size="small"
+                          value={browseDate}
+                          onChange={(e) => {
+                            setBrowseDate(e.target.value);
+                            fetchDirectAvailabilities(e.target.value);
+                          }}
+                          InputLabelProps={{ shrink: true }}
+                          sx={{ minWidth: 200 }}
+                        />
+                      </Box>
+                      {directAvailabilities.length === 0 ? (
+                        <Box sx={{ textAlign: 'center', py: 6 }}>
+                          <Typography color="text.secondary">No farmers are currently accepting direct sale requests.</Typography>
+                        </Box>
+                      ) : (
+                        <Grid container spacing={3} alignItems="stretch">
+                          {directAvailabilities.map((avail) => {
+                            const qty = getDirectBuyQty(avail._id);
+                            const setQty = (v) => setDirectBuyQty(avail._id, typeof v === 'function' ? v(qty) : v);
+                            return (
+                              <Grid item xs={12} md={6} lg={6} xl={4} key={avail._id} sx={{ display: 'flex' }}>
+                                <Card 
+                                  variant="outlined" 
+                                  sx={{ 
+                                    borderRadius: 4, 
+                                    width: '100%',
+                                    display: 'flex', 
+                                    flexDirection: 'column',
+                                    transition: 'all 0.3s ease',
+                                    '&:hover': { boxShadow: '0 8px 25px rgba(0,0,0,0.1)', borderColor: 'primary.light' }
+                                  }}
+                                >
+                                  <CardContent sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column', p: 3 }}>
+                                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
+                                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                                        <Avatar sx={{ bgcolor: 'primary.main', width: 60, height: 60, fontSize: '1.5rem', fontWeight: 800 }}>
+                                          {avail.farmer?.firstName?.[0] || 'F'}
+                                        </Avatar>
+                                        <Box>
+                                          <Typography variant="h6" sx={{ fontWeight: 800, lineHeight: 1.2 }}>{avail.farmer?.firstName} {avail.farmer?.lastName}</Typography>
+                                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.5 }}>
+                                            <Star size={16} fill="#fbbf24" color="#fbbf24" />
+                                            <Typography variant="body2" sx={{ fontWeight: 700 }}>{avail.farmer?.avgRating?.toFixed(1) || '0.0'}</Typography>
+                                          </Box>
+                                        </Box>
+                                      </Box>
+                                      <Box sx={{ textAlign: 'right' }}>
+                                        <Typography variant="h5" sx={{ fontWeight: 900, color: 'primary.main', lineHeight: 1 }}>₹{avail.pricePerLiter}<Typography component="span" variant="caption" sx={{ ml: 0.5 }}>/L</Typography></Typography>
+                                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5, fontWeight: 600 }}>{avail.availableQuantity} L available</Typography>
+                                        <Chip label={avail.shift} size="small" color="secondary" sx={{ mt: 1, fontWeight: 700, height: 20, fontSize: '0.65rem' }} />
+                                      </Box>
+                                    </Box>
+
+                                    <Divider sx={{ my: 2.5, opacity: 0.6 }} />
+
+                                    <Box sx={{ mt: 'auto' }}>
+                                      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 2, mb: 3, bgcolor: 'rgba(0,0,0,0.02)', py: 1, borderRadius: 3 }}>
+                                        <IconButton 
+                                          size="small" 
+                                          onClick={() => setQty(q => Math.max(1, q - 1))}
+                                          sx={{ bgcolor: 'white', border: '1px solid', borderColor: 'divider' }}
+                                        >
+                                          <Minus size={16} />
+                                        </IconButton>
+                                        <TextField
+                                          type="number"
+                                          size="small"
+                                          variant="standard"
+                                          value={qty}
+                                          onChange={(e) => setQty(Math.max(1, Math.min(avail.availableQuantity, parseInt(e.target.value) || 1)))}
+                                          inputProps={{ min: 1, max: avail.availableQuantity, style: { textAlign: 'center', width: 40, fontWeight: 800, fontSize: '1.1rem' } }}
+                                          InputProps={{ disableUnderline: true }}
+                                        />
+                                        <IconButton 
+                                          size="small" 
+                                          onClick={() => setQty(q => Math.min(avail.availableQuantity, q + 1))}
+                                          sx={{ bgcolor: 'white', border: '1px solid', borderColor: 'divider' }}
+                                        >
+                                          <Plus size={16} />
+                                        </IconButton>
+                                      </Box>
+
+                                      <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1.5 }}>
+                                        <Button
+                                          variant="outlined"
+                                          onClick={() => avail.farmer?._id && fetchFarmerReviews(avail.farmer._id)}
+                                          sx={{ borderRadius: 2.5, fontWeight: 700, textTransform: 'none', py: 1 }}
+                                        >
+                                          Reviews
+                                        </Button>
+                                        <Button
+                                          variant="outlined"
+                                          color="secondary"
+                                          onClick={() => avail.farmer?._id && setSubscriptionModal({
+                                            open: true,
+                                            farmerId: avail.farmer._id,
+                                            farmerName: `${avail.farmer.firstName} ${avail.farmer.lastName}`,
+                                            pricePerLiter: avail.pricePerLiter,
+                                            deliveryCharge: avail.farmer.subscriptionDeliveryCharge || 0,
+                                            shift: avail.shift,
+                                            qty
+                                          })}
+                                          sx={{ borderRadius: 2.5, fontWeight: 700, textTransform: 'none', py: 1 }}
+                                        >
+                                          Subscribe
+                                        </Button>
+                                        <Button
+                                          variant="contained"
+                                          fullWidth
+                                          sx={{ gridColumn: 'span 2', borderRadius: 2.5, fontWeight: 800, py: 1.2, textTransform: 'none', boxShadow: 'none' }}
+                                          onClick={() => avail.farmer?._id && handleDirectPurchaseRequest(avail.farmer._id, qty, avail.pricePerLiter, avail.shift)}
+                                        >
+                                          Request Milk (₹{(qty * avail.pricePerLiter).toFixed(0)})
+                                        </Button>
+                                      </Box>
+                                    </Box>
+                                  </CardContent>
+                                </Card>
+                              </Grid>
+                            );
+                          })}
+                        </Grid>
+                      )}
+                    </Paper>
                   {/* Farmers Offering Subscriptions */}
                   <Grid item xs={12} md={8}>
                     <Paper sx={{ p: 3, borderRadius: 4, mb: 3, boxShadow: '0 4px 20px rgba(0,0,0,0.05)', border: '1px solid', borderColor: 'divider', bgcolor: 'rgba(26, 93, 26, 0.02)' }}>
@@ -1835,140 +1981,6 @@ const Dashboard = () => {
                       )}
                     </Paper>
 
-                    {/* Available Farmers */}
-                    <Paper sx={{ p: 3, borderRadius: 4, boxShadow: '0 4px 20px rgba(0,0,0,0.05)', border: '1px solid', borderColor: 'divider' }}>
-                      <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
-                        <Typography variant="h6" sx={{ fontWeight: 700, display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                          <Sprout size={22} color={theme.palette.primary.main} /> Local Farmers
-                        </Typography>
-                        <TextField
-                          id="browse-date-picker"
-                          label="Select Date"
-                          type="date"
-                          size="small"
-                          value={browseDate}
-                          onChange={(e) => {
-                            setBrowseDate(e.target.value);
-                            fetchDirectAvailabilities(e.target.value);
-                          }}
-                          InputLabelProps={{ shrink: true }}
-                          sx={{ minWidth: 200 }}
-                        />
-                      </Box>
-                      {directAvailabilities.length === 0 ? (
-                        <Box sx={{ textAlign: 'center', py: 6 }}>
-                          <Typography color="text.secondary">No farmers are currently accepting direct sale requests.</Typography>
-                        </Box>
-                      ) : (
-                        <Grid container spacing={3} alignItems="stretch">
-                          {directAvailabilities.map((avail) => {
-                            const qty = getDirectBuyQty(avail._id);
-                            const setQty = (v) => setDirectBuyQty(avail._id, typeof v === 'function' ? v(qty) : v);
-                            return (
-                              <Grid item xs={12} md={6} lg={6} xl={4} key={avail._id} sx={{ display: 'flex' }}>
-                                <Card 
-                                  variant="outlined" 
-                                  sx={{ 
-                                    borderRadius: 4, 
-                                    width: '100%',
-                                    display: 'flex', 
-                                    flexDirection: 'column',
-                                    transition: 'all 0.3s ease',
-                                    '&:hover': { boxShadow: '0 8px 25px rgba(0,0,0,0.1)', borderColor: 'primary.light' }
-                                  }}
-                                >
-                                  <CardContent sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column', p: 3 }}>
-                                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
-                                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                                        <Avatar sx={{ bgcolor: 'primary.main', width: 60, height: 60, fontSize: '1.5rem', fontWeight: 800 }}>
-                                          {avail.farmer?.firstName?.[0] || 'F'}
-                                        </Avatar>
-                                        <Box>
-                                          <Typography variant="h6" sx={{ fontWeight: 800, lineHeight: 1.2 }}>{avail.farmer?.firstName} {avail.farmer?.lastName}</Typography>
-                                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.5 }}>
-                                            <Star size={16} fill="#fbbf24" color="#fbbf24" />
-                                            <Typography variant="body2" sx={{ fontWeight: 700 }}>{avail.farmer?.avgRating?.toFixed(1) || '0.0'}</Typography>
-                                          </Box>
-                                        </Box>
-                                      </Box>
-                                      <Box sx={{ textAlign: 'right' }}>
-                                        <Typography variant="h5" sx={{ fontWeight: 900, color: 'primary.main', lineHeight: 1 }}>₹{avail.pricePerLiter}<Typography component="span" variant="caption" sx={{ ml: 0.5 }}>/L</Typography></Typography>
-                                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5, fontWeight: 600 }}>{avail.availableQuantity} L available</Typography>
-                                        <Chip label={avail.shift} size="small" color="secondary" sx={{ mt: 1, fontWeight: 700, height: 20, fontSize: '0.65rem' }} />
-                                      </Box>
-                                    </Box>
-
-                                    <Divider sx={{ my: 2.5, opacity: 0.6 }} />
-
-                                    <Box sx={{ mt: 'auto' }}>
-                                      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 2, mb: 3, bgcolor: 'rgba(0,0,0,0.02)', py: 1, borderRadius: 3 }}>
-                                        <IconButton 
-                                          size="small" 
-                                          onClick={() => setQty(q => Math.max(1, q - 1))}
-                                          sx={{ bgcolor: 'white', border: '1px solid', borderColor: 'divider' }}
-                                        >
-                                          <Minus size={16} />
-                                        </IconButton>
-                                        <TextField
-                                          type="number"
-                                          size="small"
-                                          variant="standard"
-                                          value={qty}
-                                          onChange={(e) => setQty(Math.max(1, Math.min(avail.availableQuantity, parseInt(e.target.value) || 1)))}
-                                          inputProps={{ min: 1, max: avail.availableQuantity, style: { textAlign: 'center', width: 40, fontWeight: 800, fontSize: '1.1rem' } }}
-                                          InputProps={{ disableUnderline: true }}
-                                        />
-                                        <IconButton 
-                                          size="small" 
-                                          onClick={() => setQty(q => Math.min(avail.availableQuantity, q + 1))}
-                                          sx={{ bgcolor: 'white', border: '1px solid', borderColor: 'divider' }}
-                                        >
-                                          <Plus size={16} />
-                                        </IconButton>
-                                      </Box>
-
-                                      <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1.5 }}>
-                                        <Button
-                                          variant="outlined"
-                                          onClick={() => avail.farmer?._id && fetchFarmerReviews(avail.farmer._id)}
-                                          sx={{ borderRadius: 2.5, fontWeight: 700, textTransform: 'none', py: 1 }}
-                                        >
-                                          Reviews
-                                        </Button>
-                                        <Button
-                                          variant="outlined"
-                                          color="secondary"
-                                          onClick={() => avail.farmer?._id && setSubscriptionModal({
-                                            open: true,
-                                            farmerId: avail.farmer._id,
-                                            farmerName: `${avail.farmer.firstName} ${avail.farmer.lastName}`,
-                                            pricePerLiter: avail.pricePerLiter,
-                                            deliveryCharge: avail.farmer.subscriptionDeliveryCharge || 0,
-                                            shift: avail.shift,
-                                            qty
-                                          })}
-                                          sx={{ borderRadius: 2.5, fontWeight: 700, textTransform: 'none', py: 1 }}
-                                        >
-                                          Subscribe
-                                        </Button>
-                                        <Button
-                                          variant="contained"
-                                          fullWidth
-                                          sx={{ gridColumn: 'span 2', borderRadius: 2.5, fontWeight: 800, py: 1.2, textTransform: 'none', boxShadow: 'none' }}
-                                          onClick={() => avail.farmer?._id && handleDirectPurchaseRequest(avail.farmer._id, qty, avail.pricePerLiter, avail.shift)}
-                                        >
-                                          Request Milk (₹{(qty * avail.pricePerLiter).toFixed(0)})
-                                        </Button>
-                                      </Box>
-                                    </Box>
-                                  </CardContent>
-                                </Card>
-                              </Grid>
-                            );
-                          })}
-                        </Grid>
-                      )}
-                    </Paper>
                   </Grid>
 
                   {/* My Direct Requests */}
