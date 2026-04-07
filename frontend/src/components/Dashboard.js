@@ -101,6 +101,24 @@ const Dashboard = () => {
   const getDirectBuyQty = (id) => directBuyQtys[id] || 1;
   const setDirectBuyQty = (id, val) => setDirectBuyQtys(prev => ({ ...prev, [id]: val }));
 
+  const [preBookingDates, setPreBookingDates] = React.useState({});
+  const [preBookingQtys, setPreBookingQtys] = React.useState({});
+  const [preBookingShifts, setPreBookingShifts] = React.useState({});
+
+  const getPreBookingDate = (id) => {
+    if (preBookingDates[id]) return preBookingDates[id];
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    return tomorrow.toISOString().split('T')[0];
+  };
+  const setPreBookingDate = (id, val) => setPreBookingDates(prev => ({ ...prev, [id]: val }));
+  
+  const getPreBookingQty = (id) => preBookingQtys[id] || 1;
+  const setPreBookingQty = (id, val) => setPreBookingQtys(prev => ({ ...prev, [id]: val }));
+
+  const getPreBookingShift = (id) => preBookingShifts[id] || 'Morning';
+  const setPreBookingShift = (id, val) => setPreBookingShifts(prev => ({ ...prev, [id]: val }));
+
   const morningAvail = availability?.morningAvailable || 0;
   const eveningAvail = availability?.eveningAvailable || 0;
   const totalAvailable = morningAvail + eveningAvail;
@@ -519,7 +537,7 @@ const Dashboard = () => {
     }
   };
 
-  const handleDirectPurchaseRequest = async (farmerId, qty, price, shiftVal) => {
+  const handleDirectPurchaseRequest = async (farmerId, qty, price, shiftVal, requestDate) => {
     try {
       const amount = parseFloat(qty) * parseFloat(price);
       const config = { headers: { Authorization: `Bearer ${token}` } };
@@ -557,7 +575,7 @@ const Dashboard = () => {
                 quantity: parseFloat(qty),
                 paymentId: response.razorpay_payment_id,
                 shift: shiftVal,
-                date: browseDate
+                date: requestDate || browseDate
               }, config);
 
               if (submissionRes.data.success) {
@@ -584,7 +602,90 @@ const Dashboard = () => {
       rzp.open();
 
     } catch (error) {
-      const errorMsg = error.response?.data?.message || error.message || 'Request failed';
+      const errorMsg = error.response?.data?.message || error.message || 'Payment failed';
+      alert('Error: ' + errorMsg);
+      setDirectSaleMessage({ text: errorMsg, type: 'error' });
+    }
+  };
+
+  const handlePayDirectRequest = async (reqId, amount) => {
+    try {
+      const config = { headers: { Authorization: `Bearer ${token}` } };
+      
+      const orderRes = await axios.post('http://localhost:5000/api/payment/create-order', {
+        amount
+      }, config);
+
+      if (!orderRes.data.success) {
+        throw new Error('Could not create payment order');
+      }
+
+      const options = {
+        key: 'rzp_test_SQZX6y25mriFCf',
+        amount: orderRes.data.order.amount,
+        currency: "INR",
+        name: "DSMS Pre-Booking",
+        description: "Payment for Approved Pre-booking",
+        order_id: orderRes.data.order.id,
+        handler: async function (response) {
+          try {
+            const verifyRes = await axios.post('http://localhost:5000/api/payment/verify', {
+              razorpay_order_id: response.razorpay_order_id,
+              razorpay_payment_id: response.razorpay_payment_id,
+              razorpay_signature: response.razorpay_signature
+            }, config);
+
+            if (verifyRes.data.success) {
+              const payRes = await axios.put(`http://localhost:5000/api/direct-milk/pay/${reqId}`, {
+                paymentId: response.razorpay_payment_id
+              }, config);
+              
+              if (payRes.data.success) {
+                alert('Success: Payment completed successfully!');
+                const requestsRes = await axios.get('http://localhost:5000/api/direct-milk/user/requests', config);
+                setMyDirectRequests(requestsRes.data.requests);
+              }
+            } else {
+              alert('Error: Payment verification failed.');
+            }
+          } catch (err) {
+            alert('Error: Payment failed.');
+          }
+        },
+        theme: { color: "#16a34a" }
+      };
+
+      const rzp = new window.Razorpay(options);
+      rzp.on('payment.failed', function (response) {
+        alert('Payment failed: ' + response.error.description);
+      });
+      rzp.open();
+    } catch (error) {
+      console.error(error);
+      alert('Error: Could not initiate payment.');
+    }
+  };
+
+  const handlePreBookingRequest = async (farmerId, qty, price, shiftVal, requestDate) => {
+    try {
+      const config = { headers: { Authorization: `Bearer ${token}` } };
+      
+      const submissionRes = await axios.post('http://localhost:5000/api/direct-milk/request', {
+        farmerId,
+        quantity: parseFloat(qty),
+        shift: shiftVal,
+        date: requestDate
+      }, config);
+
+      if (submissionRes.data.success) {
+        alert('Success: Pre-booking request sent to farmer for approval.');
+        setDirectSaleMessage({ text: 'Pre-booking request sent to farmer for approval.', type: 'success' });
+        const res = await axios.get('http://localhost:5000/api/direct-milk/user/requests', config);
+        setMyDirectRequests(res.data.requests);
+      }
+    } catch (error) {
+      const errorMsg = error.response?.data?.message || error.message || 'Pre-booking failed';
+      alert('Error: ' + errorMsg);
       setDirectSaleMessage({ text: errorMsg, type: 'error' });
     }
   };
@@ -1327,8 +1428,8 @@ const Dashboard = () => {
                               <CardContent>
                                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                                   <Box>
-                                    <Typography sx={{ fontWeight: 700 }}>{req.userId?.name || 'Customer'}</Typography>
-                                    <Typography variant="body2" color="text.secondary">{req.userId?.phone || ''}</Typography>
+                                    <Typography sx={{ fontWeight: 700 }}>{req.user ? `${req.user.firstName} ${req.user.lastName}` : 'Customer'}</Typography>
+                                    <Typography variant="body2" color="text.secondary">{req.user?.phone || ''}</Typography>
                                     <Box sx={{ mt: 1 }}>
                                       <Chip label={`${req.quantity} L requested`} size="small" color="primary" sx={{ mr: 1, fontWeight: 700 }} />
                                       <Chip label={`₹${req.pricePerLiter}/L`} size="small" color="success" sx={{ mr: 1, fontWeight: 700 }} />
@@ -1338,10 +1439,10 @@ const Dashboard = () => {
                                   <Box>
                                     {req.status === 'pending' ? (
                                       <Box sx={{ display: 'flex', gap: 1 }}>
-                                        <IconButton color="success" onClick={() => handleFarmerAction(req._id, 'approve')} sx={{ bgcolor: 'success.light', '&:hover': { bgcolor: 'success.main', color: 'white' } }}>
+                                        <IconButton color="success" onClick={() => handleFarmerAction(req._id, 'approved')} sx={{ bgcolor: 'success.light', '&:hover': { bgcolor: 'success.main', color: 'white' } }}>
                                           <CircleCheck size={20} />
                                         </IconButton>
-                                        <IconButton color="error" onClick={() => handleFarmerAction(req._id, 'reject')} sx={{ bgcolor: 'error.light', '&:hover': { bgcolor: 'error.main', color: 'white' } }}>
+                                        <IconButton color="error" onClick={() => handleFarmerAction(req._id, 'rejected')} sx={{ bgcolor: 'error.light', '&:hover': { bgcolor: 'error.main', color: 'white' } }}>
                                           <CircleX size={20} />
                                         </IconButton>
                                       </Box>
@@ -1534,7 +1635,11 @@ const Dashboard = () => {
                         </Box>
                       ) : (
                         <Grid container spacing={2}>
-                          {preBookingFarmers.map((farmer) => (
+                          {preBookingFarmers.map((farmer) => {
+                            const pDate = getPreBookingDate(farmer._id);
+                            const pQty = getPreBookingQty(farmer._id);
+                            const pShift = getPreBookingShift(farmer._id);
+                            return (
                             <Grid item xs={12} lg={6} key={farmer._id}>
                               <Card variant="outlined" sx={{ borderRadius: 3, height: '100%', borderLeft: '4px solid #38bdf8' }}>
                                 <CardContent>
@@ -1560,27 +1665,54 @@ const Dashboard = () => {
                                       <Typography variant="body2" sx={{ fontWeight: 700 }}>{farmer.avgRating?.toFixed(1) || '0.0'}</Typography>
                                       <Typography variant="caption" color="text.secondary">({farmer.totalReviews} reviews)</Typography>
                                     </Box>
-                                    <Button
-                                      variant="outlined"
-                                      size="small"
-                                      color="info"
-                                      onClick={() => {
-                                        // A simple focus on the date picker element
-                                        const dateField = document.getElementById('browse-date-picker');
-                                        if(dateField) {
-                                          dateField.focus();
-                                          dateField.showPicker?.();
-                                        }
-                                      }}
-                                      sx={{ borderRadius: 2, fontWeight: 700 }}
-                                    >
-                                      Pick Date Below
-                                    </Button>
+                                  </Box>
+                                  
+                                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 2 }}>
+                                    <Box sx={{ display: 'flex', gap: 1 }}>
+                                      <TextField
+                                          type="date"
+                                          size="small"
+                                          value={pDate}
+                                          onChange={(e) => setPreBookingDate(farmer._id, e.target.value)}
+                                          InputLabelProps={{ shrink: true }}
+                                          sx={{ flexGrow: 1 }}
+                                      />
+                                      <TextField
+                                          select
+                                          size="small"
+                                          value={pShift}
+                                          onChange={(e) => setPreBookingShift(farmer._id, e.target.value)}
+                                          SelectProps={{ native: true }}
+                                          sx={{ minWidth: 100 }}
+                                      >
+                                          <option value="Morning">Morning</option>
+                                          <option value="Evening">Evening</option>
+                                      </TextField>
+                                    </Box>
+                                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, bgcolor: 'rgba(0,0,0,0.02)', py: 0.5, px: 1, borderRadius: 2 }}>
+                                        <IconButton size="small" onClick={() => setPreBookingQty(farmer._id, Math.max(1, pQty - 1))} sx={{ bgcolor: 'white', border: '1px solid', borderColor: 'divider' }}>
+                                          <Minus size={14} />
+                                        </IconButton>
+                                        <Typography sx={{ fontWeight: 800, minWidth: 20, textAlign: 'center' }}>{pQty}</Typography>
+                                        <IconButton size="small" onClick={() => setPreBookingQty(farmer._id, pQty + 1)} sx={{ bgcolor: 'white', border: '1px solid', borderColor: 'divider' }}>
+                                          <Plus size={14} />
+                                        </IconButton>
+                                      </Box>
+                                      <Button
+                                        variant="contained"
+                                        color="info"
+                                        onClick={() => handlePreBookingRequest(farmer._id, pQty, farmer.preBookingMilkRate, pShift, pDate)}
+                                        sx={{ borderRadius: 2, fontWeight: 700, textTransform: 'none' }}
+                                      >
+                                        Request (₹{(pQty * farmer.preBookingMilkRate).toFixed(0)})
+                                      </Button>
+                                    </Box>
                                   </Box>
                                 </CardContent>
                               </Card>
                             </Grid>
-                          ))}
+                          );})}
                         </Grid>
                       )}
                     </Paper>
@@ -1756,6 +1888,17 @@ const Dashboard = () => {
                                     startIcon={<Star size={14} />}
                                   >
                                     Leave Review
+                                  </Button>
+                                )}
+                                {req.status === 'approved' && req.paymentStatus === 'pending' && (
+                                  <Button
+                                    size="small"
+                                    variant="contained"
+                                    color="success"
+                                    sx={{ mt: 1.5, ml: req.rating ? 0 : 1, borderRadius: 2, fontWeight: 700, boxShadow: 'none' }}
+                                    onClick={() => handlePayDirectRequest(req._id, req.totalAmount)}
+                                  >
+                                    Pay Now (₹{req.totalAmount})
                                   </Button>
                                 )}
                                 {req.rating && (

@@ -354,7 +354,10 @@ router.post('/login', async (req, res) => {
         totalMilkRecords: user.totalMilkRecords,
         offersSubscription: user.offersSubscription,
         subscriptionMilkRate: user.subscriptionMilkRate,
-        subscriptionDeliveryRange: user.subscriptionDeliveryRange
+        subscriptionDeliveryRange: user.subscriptionDeliveryRange,
+        offersPreBooking: user.offersPreBooking,
+        preBookingMilkRate: user.preBookingMilkRate,
+        preBookingDeliveryRange: user.preBookingDeliveryRange
       }
     });
   } catch (error) {
@@ -414,7 +417,10 @@ router.get('/me', async (req, res) => {
         totalMilkRecords: user.totalMilkRecords,
         offersSubscription: user.offersSubscription,
         subscriptionMilkRate: user.subscriptionMilkRate,
-        subscriptionDeliveryRange: user.subscriptionDeliveryRange
+        subscriptionDeliveryRange: user.subscriptionDeliveryRange,
+        offersPreBooking: user.offersPreBooking,
+        preBookingMilkRate: user.preBookingMilkRate,
+        preBookingDeliveryRange: user.preBookingDeliveryRange
       }
     });
   } catch (error) {

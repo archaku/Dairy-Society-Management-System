@@ -187,51 +187,63 @@ router.post('/request', verifyUser, async (req, res) => {
             shift
         });
 
-        if (!availability) {
-            return res.status(400).json({
-                success: false,
-                message: `No availability found from this farmer for ${targetDate.toLocaleDateString()}.`
-            });
-        }
-
-        const MilkSubscription = require('../models/MilkSubscription');
-        const activeSubs = await MilkSubscription.find({
-            farmer: farmerId,
-            shift,
-            status: 'active',
-            startDate: { $lte: new Date(targetDate.getTime() + 86400000 - 1) },
-            endDate: { $gte: targetDate }
-        });
+        const farmer = await Farmer.findById(farmerId);
         
-        const subscribedQty = activeSubs.reduce((sum, sub) => sum + sub.quantityPerDay, 0);
+        let pricePerLiter = 0;
 
-        // Also subtract pending direct sales
-        const availStart = new Date(availability.date);
-        availStart.setHours(0,0,0,0);
-        const availEnd = new Date(availStart);
-        availEnd.setHours(23,59,59,999);
-
-        const pendingSales = await DirectMilkSale.find({
-            farmer: farmerId,
-            shift,
-            status: 'pending',
-            date: { $gte: availStart, $lte: availEnd }
-        });
-        const pendingQty = pendingSales.reduce((sum, sale) => sum + sale.quantity, 0);
-
-        const remainingQty = availability.availableQuantity - subscribedQty - pendingQty;
-
-        if (remainingQty < quantity) {
-            return res.status(400).json({
-                success: false,
-                message: `Insufficient milk available. Stock reserved for subscriptions and pending requests leaving only ${remainingQty.toFixed(1)}L open.`
+        if (!availability) {
+            // Check if farmer offers pre-booking
+            if (farmer && farmer.offersPreBooking) {
+                // If they offer prebooking, we proceed without explicit availability.
+                pricePerLiter = farmer.preBookingMilkRate;
+            } else {
+                return res.status(400).json({
+                    success: false,
+                    message: `No availability found from this farmer for ${targetDate.toLocaleDateString()} and they do not offer pre-booking.`
+                });
+            }
+        } else {
+            pricePerLiter = availability.pricePerLiter;
+            
+            const MilkSubscription = require('../models/MilkSubscription');
+            const activeSubs = await MilkSubscription.find({
+                farmer: farmerId,
+                shift,
+                status: 'active',
+                startDate: { $lte: new Date(targetDate.getTime() + 86400000 - 1) },
+                endDate: { $gte: targetDate }
             });
+            
+            const subscribedQty = activeSubs.reduce((sum, sub) => sum + sub.quantityPerDay, 0);
+
+            // Also subtract pending direct sales
+            const availStart = new Date(availability.date);
+            availStart.setHours(0,0,0,0);
+            const availEnd = new Date(availStart);
+            availEnd.setHours(23,59,59,999);
+
+            const pendingSales = await DirectMilkSale.find({
+                farmer: farmerId,
+                shift,
+                status: 'pending',
+                date: { $gte: availStart, $lte: availEnd }
+            });
+            const pendingQty = pendingSales.reduce((sum, sale) => sum + sale.quantity, 0);
+
+            const remainingQty = availability.availableQuantity - subscribedQty - pendingQty;
+
+            if (remainingQty < quantity) {
+                return res.status(400).json({
+                    success: false,
+                    message: `Insufficient milk available. Stock reserved for subscriptions and pending requests leaving only ${remainingQty.toFixed(1)}L open.`
+                });
+            }
         }
 
-        const totalAmount = quantity * availability.pricePerLiter;
+        const totalAmount = quantity * pricePerLiter;
         const isPaid = !!req.body.paymentId;
 
-        if (isPaid) {
+        if (isPaid && availability) {
             availability.availableQuantity -= quantity;
             await availability.save();
             console.log(`Auto-decremented stock for farmer ${farmerId} by ${quantity}L due to paid request.`);
@@ -242,7 +254,7 @@ router.post('/request', verifyUser, async (req, res) => {
             user: req.userId,
             farmer: farmerId,
             quantity,
-            pricePerLiter: availability.pricePerLiter,
+            pricePerLiter,
             totalAmount,
             status: isPaid ? 'approved' : 'pending',
             paymentStatus: isPaid ? 'Completed' : 'pending',
@@ -353,6 +365,34 @@ router.put('/farmer/action/:id', verifyFarmer, async (req, res) => {
 
         sale.status = action;
         if (remark) sale.remark = remark;
+        await sale.save();
+
+        res.json({ success: true, sale });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+// @route   PUT /api/direct-milk/pay/:id
+// @desc    User pays for an approved request
+router.put('/pay/:id', verifyUser, async (req, res) => {
+    try {
+        const { paymentId } = req.body;
+        if (!paymentId) return res.status(400).json({ success: false, message: 'Payment ID is required' });
+
+        const sale = await DirectMilkSale.findById(req.params.id);
+        if (!sale) return res.status(404).json({ success: false, message: 'Request not found' });
+
+        if (sale.user.toString() !== req.userId) {
+            return res.status(403).json({ success: false, message: 'Unauthorized' });
+        }
+
+        if (sale.status !== 'approved') {
+            return res.status(400).json({ success: false, message: 'Only approved requests can be paid for.' });
+        }
+
+        sale.paymentStatus = 'Completed';
+        sale.paymentId = paymentId;
         await sale.save();
 
         res.json({ success: true, sale });

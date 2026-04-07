@@ -43,13 +43,11 @@
   \clearpage
 }
 \def\@makeschapterhead#1{%
-  \vspace*{\fill}
   \begin{center}%
     \interlinepenalty\@M
-    \fontsize{24pt}{28pt}\selectfont\bfseries \MakeUppercase{#1}\par\nobreak
+    \fontsize{16pt}{18pt}\selectfont\bfseries \MakeUppercase{#1}\par\nobreak
   \end{center}%
-  \vspace*{\fill}
-  \clearpage
+  \vskip 20\p@
 }
 \makeatother
 
@@ -79,19 +77,19 @@
 \setlength{\cftchapindent}{0pt}
 \setlength{\cftsecindent}{1.5em}
 
-\renewcommand{\cftchapfont}{\bfseries}
-\renewcommand{\cftchappagefont}{\bfseries}
+\renewcommand{\cftchapfont}{\normalfont}
+\renewcommand{\cftchappagefont}{\normalfont}
 
 \renewcommand{\cftdotsep}{1}
 \setlength{\cftbeforechapskip}{6pt}
 
 \makeatletter
 \renewcommand{\@cftmaketoctitle}{%
-  \chapter*{%
-    \centering
-    \fontsize{14pt}{16pt}\selectfont
+  \begin{center}
+    \fontsize{16pt}{18pt}\selectfont
     \textbf{TABLE OF CONTENTS}
-  }
+  \end{center}
+  \vspace{20pt}
 }
 \makeatother
 
@@ -139,6 +137,7 @@
 
 % =====================================================
 \begin{document}
+\pagenumbering{roman}
 
 % ===================== PAGE 1 : TITLE PAGE =====================
 \thispagestyle{empty}
@@ -284,6 +283,7 @@ Furthermore, I would like to thank all others especially my parents and numerous
 % ===================== PAGE 4 : ABSTRACT =====================
 \newpage
 \thispagestyle{empty}
+\addcontentsline{toc}{chapter}{ABSTRACT}
 
 \begin{center}
 \fontsize{16pt}{18pt}\selectfont
@@ -300,17 +300,22 @@ In addition, the system includes a Customer Module where users can purchase milk
 % ===================== TABLE OF CONTENTS =====================
 
 \clearpage
-\pagenumbering{gobble}   % <-- completely removes page number
-\pagestyle{empty}       % <-- removes header & footer
+\pagestyle{empty}
 \tableofcontents
+\addtocontents{toc}{\protect\thispagestyle{empty}}
 
 \clearpage
+\addcontentsline{toc}{chapter}{LIST OF FIGURES}
 \listoffigures
+\addtocontents{lof}{\protect\thispagestyle{empty}}
+
 \clearpage
+\addcontentsline{toc}{chapter}{LIST OF TABLES}
 \listoftables
+\addtocontents{lot}{\protect\thispagestyle{empty}}
 
-
-\pagenumbering{arabic}  % <-- restores numbering
+\clearpage
+\pagenumbering{arabic}  % <-- restarts numbering at 1, 2, 3
 \pagestyle{maincontent} % <-- restores header/footer
 
 \chapter{INTRODUCTION}
@@ -661,6 +666,110 @@ TC-06 & Admin Login Boundary Check & Passed: Admin routes properly guarded. \\ \
 \vspace{0.4cm}
 
 Test methodologies integrated component checks analyzing endpoint failures (such as attempting stock deduction from entirely occupied ledger arrays) paired against user interface simulated event click limits. The backend scripts manually test maximum overlap loads reliably.
+
+\chapter{AGILE / DEVELOPMENT METHODOLOGY}
+\section{Overview of Development Methodology}
+\vspace{0.5cm}
+The Dairy Society Management System (DSMS) was developed following the Agile Software Development methodology, a modern iterative approach that prioritizes adaptive planning, evolutionary development, early delivery, and continuous improvement. Unlike the traditional Waterfall model, which follows a rigid sequential flow from requirements gathering through to deployment, Agile embraces change at every stage of development. This flexibility was essential for DSMS, as the requirements surrounding dairy cooperative workflows—milk collection processes, quality-based pricing algorithms, direct farmer-to-customer sales pipelines, and subscription management—evolved continuously based on real-world operational feedback and stakeholder consultations.
+
+Agile methodology was selected for this project because dairy society operations are inherently dynamic. Farmers may require new features for tracking cattle feed inventory, administrators may request additional analytics dashboards, and customers may need more flexible subscription options. A rigid development plan would not accommodate such evolving needs effectively. By adopting Agile, the development team maintained the ability to reprioritize features, incorporate feedback from each iteration, and deliver a progressively refined product that closely aligned with the expectations of all three user roles: Farmer, Society Administrator, and Customer.
+
+\section{Scrum Framework Adoption}
+\vspace{0.5cm}
+Within the broader Agile umbrella, the Scrum framework was specifically adopted to structure the development process. Scrum organizes work into time-boxed iterations called Sprints, each lasting between one to two weeks. At the beginning of every sprint, a Sprint Planning session was conducted to identify the highest-priority items from the Product Backlog—a prioritized list of all features, enhancements, and bug fixes required for the system.
+
+The Scrum framework defines three core roles: the Product Owner, who represents the stakeholders and prioritizes the backlog; the Scrum Master, who facilitates the process and removes impediments; and the Development Team, which designs, builds, and tests the deliverables. In the context of this academic project, these roles were adapted to fit the team structure, with the project guide serving as the Product Owner and the developer assuming the responsibilities of both Scrum Master and Development Team member.
+
+Key Scrum artifacts maintained throughout the project included:
+\begin{itemize}
+    \item \textbf{Product Backlog:} A comprehensive, prioritized list of all system features derived from the initial requirements analysis. Items ranged from core functionalities such as user authentication and milk record management to advanced features like Razorpay payment integration and real-time analytics dashboards.
+    \item \textbf{Sprint Backlog:} A subset of the Product Backlog selected for implementation during each sprint. Each sprint backlog contained well-defined user stories with clear acceptance criteria.
+    \item \textbf{Increment:} The sum of all completed backlog items at the end of each sprint, representing a potentially shippable product version that was demonstrated during Sprint Review sessions.
+\end{itemize}
+
+\section{Sprint Planning and Execution}
+\vspace{0.5cm}
+The entire DSMS development lifecycle was organized into six structured sprints, each targeting a specific functional domain of the application. This phased approach ensured that foundational components were established before building dependent features, while still allowing flexibility to revisit and refine earlier modules based on integration feedback.
+
+\vspace{0.4cm}
+\renewcommand{\arraystretch}{1.5}
+\begin{table}[htbp]
+\centering
+\begin{tabular}{|p{2cm}|p{3.5cm}|p{5cm}|p{3.5cm}|}
+\hline
+\textbf{Sprint} & \textbf{Duration} & \textbf{Key Deliverables} & \textbf{Status} \\ \hline
+Sprint 1 & Week 1--2 & Project setup, MongoDB schema design, User authentication (JWT + bcrypt), Role-based access control & Completed \\ \hline
+Sprint 2 & Week 3--4 & Farmer module, Milk record CRUD operations, Quality-based pricing algorithm, Admin milk entry interface & Completed \\ \hline
+Sprint 3 & Week 5--6 & Society stock management, Organization sales module, Inventory tracking dashboards, Farmer payment settlement logic & Completed \\ \hline
+Sprint 4 & Week 7--8 & Customer module, Direct milk sales pipeline, Farmer availability listing, Pre-booking request workflow & Completed \\ \hline
+Sprint 5 & Week 9--10 & Razorpay payment gateway integration, Milk subscription engine, Automated subscription renewals, Webhook verification & Completed \\ \hline
+Sprint 6 & Week 11--12 & Analytics and performance dashboards, Chart.js/Recharts integration, Supplement inventory notifications, UI/UX refinement and testing & Completed \\ \hline
+\end{tabular}
+\caption{Sprint-wise Development Plan for DSMS}
+\end{table}
+\vspace{0.4cm}
+
+Each sprint followed a consistent execution cycle. During the first day, the Sprint Planning meeting identified the user stories to be addressed. Development proceeded iteratively, with daily self-review sessions replacing formal Daily Standups due to the individual nature of the project. At the end of each sprint, a Sprint Review was conducted with the project guide to demonstrate the working increment, gather feedback, and adjust the Product Backlog accordingly. A brief Sprint Retrospective followed, where the development process itself was evaluated to identify improvements for the next iteration.
+
+\section{User Stories and Acceptance Criteria}
+\vspace{0.5cm}
+User stories served as the primary mechanism for capturing functional requirements in an Agile-compatible format. Each user story was written from the perspective of a specific user role and included clearly defined acceptance criteria to ensure completeness and testability. Representative user stories developed for DSMS include:
+
+\begin{enumerate}
+    \item \textbf{US-01:} ``As a Society Administrator, I want to record daily milk collection entries for each farmer with volume, fat, SNF, and pH values, so that pricing is calculated automatically and transparently.'' \\
+    \textit{Acceptance Criteria:} The system must validate all input fields, compute the price per liter using the quality-based formula, calculate the total amount, and store the record with a timestamp and shift indicator.
+
+    \item \textbf{US-02:} ``As a Farmer, I want to view my daily milk records and cumulative payment history, so that I can verify my earnings and track my supply patterns.'' \\
+    \textit{Acceptance Criteria:} The farmer dashboard must display a paginated list of all milk records with date, shift, volume, quality parameters, and calculated amounts. A summary section must show total earnings for selected date ranges.
+
+    \item \textbf{US-03:} ``As a Customer, I want to browse available farmers in my locality and place a pre-booking order for fresh milk, so that I can receive milk directly without intermediaries.'' \\
+    \textit{Acceptance Criteria:} The customer interface must show real-time farmer availability with quantity, price, and shift details. The pre-booking request must be recorded with a ``Pending'' status and the farmer must be notified for approval.
+
+    \item \textbf{US-04:} ``As a Customer, I want to subscribe to a farmer for daily milk delivery and pay securely online, so that I receive milk regularly without placing daily orders.'' \\
+    \textit{Acceptance Criteria:} The subscription must be created only after successful Razorpay payment verification. The system must track delivery schedules and automatically manage subscription expiry based on the selected duration.
+
+    \item \textbf{US-05:} ``As a Society Administrator, I want to view analytics dashboards showing milk collection trends, farmer performance metrics, and inventory levels, so that I can make informed operational decisions.'' \\
+    \textit{Acceptance Criteria:} Dashboards must render interactive charts using Recharts, support date-range filtering, and display key performance indicators including total collection volume, average quality scores, and active farmer count.
+\end{enumerate}
+
+\section{Iterative Development and Continuous Integration}
+\vspace{0.5cm}
+A core principle of the Agile methodology applied in DSMS development was the emphasis on iterative refinement and continuous integration. Rather than attempting to build the entire system in a single development phase, each module was developed, tested, and integrated incrementally. This approach offered several tangible benefits:
+
+\begin{itemize}
+    \item \textbf{Early Detection of Defects:} By testing each module immediately after development, bugs related to API endpoint behavior, database schema mismatches, and frontend rendering errors were identified and resolved within the same sprint, preventing the accumulation of technical debt.
+    \item \textbf{Continuous Stakeholder Feedback:} Working prototypes were demonstrated at the end of each sprint, allowing the project guide to provide actionable feedback. For instance, the pricing algorithm was refined during Sprint 2 based on feedback regarding the weightage assigned to Fat versus SNF percentages.
+    \item \textbf{Reduced Integration Risk:} Since backend APIs and frontend components were integrated incrementally, the risk of encountering large-scale integration failures was minimized. Each sprint produced a tested, working increment that built upon the previous one.
+    \item \textbf{Flexible Prioritization:} When the direct farmer-to-customer sales feature was identified as a high-priority requirement during Sprint 3 review, it was elevated in the Product Backlog and addressed in Sprint 4 without disrupting the overall project timeline.
+\end{itemize}
+
+Version control was managed using Git, with all source code hosted on a remote GitHub repository. A structured branching strategy was followed: the \texttt{main} branch contained stable, tested code, while feature-specific branches (e.g., \texttt{feature/direct-sales}, \texttt{feature/subscriptions}) were used for active development. Code was merged into the main branch only after thorough testing and review, ensuring that the production codebase remained stable at all times.
+
+\section{Tools and Practices Supporting Agile Development}
+\vspace{0.5cm}
+Several tools and practices were employed to support the Agile workflow throughout the DSMS development lifecycle:
+
+\begin{itemize}
+    \item \textbf{Visual Studio Code:} Served as the primary Integrated Development Environment (IDE) for both frontend and backend development, offering extensions for JavaScript linting, Git integration, and terminal-based debugging.
+    \item \textbf{Git and GitHub:} Provided robust version control and collaborative code management capabilities. Commit histories served as a chronological record of feature additions, bug fixes, and refactoring efforts across all sprints.
+    \item \textbf{Postman:} Used extensively for API endpoint testing during each sprint. Collections were organized by module (Authentication, Milk Records, Direct Sales, Subscriptions), enabling rapid regression testing after code changes.
+    \item \textbf{MongoDB Compass:} Provided a graphical interface for inspecting database collections, verifying schema structures, and debugging data integrity issues during integration testing phases.
+    \item \textbf{Browser Developer Tools:} Chrome DevTools were used for frontend debugging, network request inspection, and performance profiling of the React application during Sprint Review demonstrations.
+\end{itemize}
+
+\section{Benefits of Agile Methodology for DSMS}
+\vspace{0.5cm}
+The adoption of Agile methodology yielded significant benefits for the DSMS project:
+
+\begin{enumerate}
+    \item \textbf{Adaptability to Changing Requirements:} As the understanding of dairy cooperative workflows deepened during development, new features such as supplement inventory notifications and farmer performance grading were seamlessly incorporated into later sprints without requiring a complete redesign of the system architecture.
+    \item \textbf{Higher Product Quality:} Continuous testing and iterative refinement ensured that each module met its acceptance criteria before being integrated into the larger system. This resulted in fewer post-deployment defects and a more polished final product.
+    \item \textbf{Faster Time to Market:} By delivering working increments at the end of each sprint, core functionalities were available for demonstration and feedback much earlier than would have been possible with a Waterfall approach.
+    \item \textbf{Enhanced Stakeholder Satisfaction:} Regular Sprint Reviews kept the project guide informed of progress and provided opportunities to steer the development direction, resulting in a final product that closely matched the project objectives and academic requirements.
+    \item \textbf{Risk Mitigation:} The incremental nature of Agile development distributed risk across multiple sprints. Critical integrations, such as the Razorpay payment gateway, were addressed in dedicated sprints with sufficient time allocated for troubleshooting and verification.
+\end{enumerate}
+
+The Agile methodology, implemented through the Scrum framework, proved to be an ideal fit for the DSMS project. Its emphasis on iterative delivery, stakeholder collaboration, and adaptive planning enabled the successful development of a comprehensive, feature-rich dairy management platform within the allocated project timeline.
 
 \chapter{IMPLEMENTATION AND TESTING}
 \section{Implementation Procedures}
