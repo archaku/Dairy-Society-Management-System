@@ -125,19 +125,7 @@ router.get('/farmers', async (req, res) => {
 
         const adjustedAvailabilities = [];
         for (let avail of availabilities) {
-            // Subtract Subscriptions
-            const activeSubs = await MilkSubscription.find({
-                farmer: avail.farmer._id,
-                shift: avail.shift,
-                status: 'active',
-                startDate: { $lte: new Date(targetDate.getTime() + 86400000 - 1) },
-                endDate: { $gte: targetDate }
-            });
-            
-            const subscribedQty = activeSubs.reduce((sum, sub) => sum + sub.quantityPerDay, 0);
-
             // Subtract Direct Sales (Pending)
-            // Use availability date start/end to avoid timezone issues
             const availStart = new Date(avail.date);
             availStart.setHours(0,0,0,0);
             const availEnd = new Date(availStart);
@@ -151,7 +139,7 @@ router.get('/farmers', async (req, res) => {
             });
             const pendingQty = pendingSales.reduce((sum, sale) => sum + sale.quantity, 0);
 
-            const remainingQty = avail.availableQuantity - subscribedQty - pendingQty;
+            const remainingQty = avail.availableQuantity - pendingQty;
 
             if (remainingQty > 0) {
                 adjustedAvailabilities.push({
@@ -205,17 +193,6 @@ router.post('/request', verifyUser, async (req, res) => {
         } else {
             pricePerLiter = availability.pricePerLiter;
             
-            const MilkSubscription = require('../models/MilkSubscription');
-            const activeSubs = await MilkSubscription.find({
-                farmer: farmerId,
-                shift,
-                status: 'active',
-                startDate: { $lte: new Date(targetDate.getTime() + 86400000 - 1) },
-                endDate: { $gte: targetDate }
-            });
-            
-            const subscribedQty = activeSubs.reduce((sum, sub) => sum + sub.quantityPerDay, 0);
-
             // Also subtract pending direct sales
             const availStart = new Date(availability.date);
             availStart.setHours(0,0,0,0);
@@ -230,7 +207,7 @@ router.post('/request', verifyUser, async (req, res) => {
             });
             const pendingQty = pendingSales.reduce((sum, sale) => sum + sale.quantity, 0);
 
-            const remainingQty = availability.availableQuantity - subscribedQty - pendingQty;
+            const remainingQty = availability.availableQuantity - pendingQty;
 
             if (remainingQty < quantity) {
                 return res.status(400).json({

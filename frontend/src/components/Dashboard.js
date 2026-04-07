@@ -21,7 +21,7 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as ChartTooltip, Legend, ResponsiveContainer, BarChart, Bar, Cell } from 'recharts';
 import jsPDF from 'jspdf';
-import 'jspdf-autotable';
+import autoTable from 'jspdf-autotable';
 
 const DRAWER_WIDTH = 260;
 
@@ -131,14 +131,14 @@ const Dashboard = () => {
       
       doc.setFontSize(10);
       doc.setFont("helvetica", "normal");
-      doc.text(`Invoice Date: ${new Date(date).toLocaleDateString()}`, 14, 40);
+      doc.text(`Invoice Date: ${new Date(date).toLocaleString('en-IN', { dateStyle: 'short', timeStyle: 'short' })}`, 14, 40);
       doc.text(`Payment ID: ${paymentId}`, 14, 45);
       doc.text(`Billed To: ${user?.firstName} ${user?.lastName} (${user?.email})`, 14, 50);
 
       doc.setFont("helvetica", "bold");
       doc.text(`Order Type: ${title}`, 14, 60);
 
-      doc.autoTable({
+      autoTable(doc, {
         startY: 65,
         head: [['Description', 'Amount (INR)']],
         body: items,
@@ -675,9 +675,13 @@ const Dashboard = () => {
                 const res = await axios.get('http://localhost:5000/api/direct-milk/user/requests', config);
                 setMyDirectRequests(res.data.requests);
                 fetchDirectAvailabilities();
+
+                const matchedAvail = directAvailabilities.find(a => a.farmer?._id === farmerId);
+                const farmerName = matchedAvail ? `${matchedAvail.farmer.firstName} ${matchedAvail.farmer.lastName}` : 'Farmer';
+
                 generateInvoiceAndUpload({
                   title: 'Direct Milk Purchase',
-                  items: [[`${parseFloat(qty)}L Milk from Farmer`, amount.toFixed(2)]],
+                  items: [[`${parseFloat(qty)}L Milk from ${farmerName}`, amount.toFixed(2)]],
                   totalAmount: amount,
                   date: requestDate || browseDate
                 }, response.razorpay_payment_id);
@@ -741,9 +745,13 @@ const Dashboard = () => {
                 alert('Success: Payment completed successfully!');
                 const requestsRes = await axios.get('http://localhost:5000/api/direct-milk/user/requests', config);
                 setMyDirectRequests(requestsRes.data.requests);
+                
+                const matchedReq = myDirectRequests.find(r => r._id === reqId);
+                const farmerName = matchedReq && matchedReq.farmer ? `${matchedReq.farmer.firstName} ${matchedReq.farmer.lastName}` : 'Farmer';
+
                 generateInvoiceAndUpload({
                   title: 'Direct Milk Pre-booking Payment',
-                  items: [['Pre-booked Milk Order Payment', amount.toFixed(2)]],
+                  items: [[`Pre-booked Milk Order Payment (${farmerName})`, amount.toFixed(2)]],
                   totalAmount: amount,
                   date: new Date()
                 }, response.razorpay_payment_id);

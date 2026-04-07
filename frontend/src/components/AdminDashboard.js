@@ -20,7 +20,7 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as ChartTooltip, Legend, ResponsiveContainer, BarChart, Bar, Cell } from 'recharts';
 import jsPDF from 'jspdf';
-import 'jspdf-autotable';
+import autoTable from 'jspdf-autotable';
 
 const DRAWER_WIDTH = 260;
 
@@ -153,7 +153,7 @@ const AdminDashboard = () => {
       p.quantity
     ]);
     if (salesData.length > 0) {
-      doc.autoTable({
+      autoTable(doc, {
         startY: startY,
         head: [['Date', 'Customer', 'Qty (L)']],
         body: salesData,
@@ -172,7 +172,7 @@ const AdminDashboard = () => {
       r.quantity
     ]);
     if (milkData.length > 0) {
-      doc.autoTable({
+      autoTable(doc, {
         startY: startY,
         head: [['Date', 'Farmer', 'Qty (L)']],
         body: milkData,
@@ -191,7 +191,7 @@ const AdminDashboard = () => {
       s.quantity
     ]);
     if (bulkData.length > 0) {
-      doc.autoTable({
+      autoTable(doc, {
         startY: startY,
         head: [['Date', 'Organization', 'Qty (L)']],
         body: bulkData,
