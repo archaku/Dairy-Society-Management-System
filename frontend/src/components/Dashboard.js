@@ -20,6 +20,8 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as ChartTooltip, Legend, ResponsiveContainer, BarChart, Bar, Cell } from 'recharts';
+import jsPDF from 'jspdf';
+import 'jspdf-autotable';
 
 const DRAWER_WIDTH = 260;
 
@@ -97,6 +99,81 @@ const Dashboard = () => {
   const [supplementOrders, setSupplementOrders] = React.useState([]);
   const [browseDate, setBrowseDate] = React.useState(new Date().toISOString().split('T')[0]);
   const [farmerDate, setFarmerDate] = React.useState(new Date().toISOString().split('T')[0]);
+  const [myInvoices, setMyInvoices] = React.useState([]);
+
+  const fetchMyInvoices = async () => {
+    if (user?.role === 'user') {
+        try {
+            const config = { headers: { Authorization: `Bearer ${token}` } };
+            const res = await axios.get('http://localhost:5000/api/invoices/user', config);
+            if (res.data.success) {
+                setMyInvoices(res.data.invoices || []);
+            }
+        } catch (error) {
+            console.error('Error fetching invoices:', error);
+        }
+    }
+  };
+
+  const generateInvoiceAndUpload = async (invoiceDetails, paymentId) => {
+    try {
+      const { title, items, totalAmount, date } = invoiceDetails;
+      const doc = new jsPDF();
+      
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(22);
+      doc.setTextColor(26, 93, 26);
+      doc.text("Dairy Society Management System", 14, 20);
+      
+      doc.setFontSize(14);
+      doc.setTextColor(0, 0, 0);
+      doc.text("INVOICE", 14, 30);
+      
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "normal");
+      doc.text(`Invoice Date: ${new Date(date).toLocaleDateString()}`, 14, 40);
+      doc.text(`Payment ID: ${paymentId}`, 14, 45);
+      doc.text(`Billed To: ${user?.firstName} ${user?.lastName} (${user?.email})`, 14, 50);
+
+      doc.setFont("helvetica", "bold");
+      doc.text(`Order Type: ${title}`, 14, 60);
+
+      doc.autoTable({
+        startY: 65,
+        head: [['Description', 'Amount (INR)']],
+        body: items,
+        theme: 'grid',
+        headStyles: { fillColor: [26, 93, 26] },
+        styles: { fontSize: 10 }
+      });
+
+      const finalY = doc.lastAutoTable.finalY || 65;
+      doc.setFontSize(12);
+      doc.setFont("helvetica", "bold");
+      doc.text(`Total Amount: INR ${totalAmount.toFixed(2)}`, 14, finalY + 10);
+
+      const filename = `Invoice_${paymentId}.pdf`;
+      doc.save(filename);
+
+      const pdfBlob = doc.output('blob');
+      const formData = new FormData();
+      formData.append('invoicePdf', pdfBlob, filename);
+      formData.append('paymentId', paymentId);
+      formData.append('amount', totalAmount.toString());
+      formData.append('description', title);
+
+      await axios.post('http://localhost:5000/api/invoices/upload', formData, {
+        headers: { 
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'multipart/form-data'
+        }
+      });
+      
+      fetchMyInvoices();
+    } catch (err) {
+      console.error("Invoice generation error", err);
+    }
+  };
 
   const getDirectBuyQty = (id) => directBuyQtys[id] || 1;
   const setDirectBuyQty = (id, val) => setDirectBuyQtys(prev => ({ ...prev, [id]: val }));
@@ -228,6 +305,8 @@ const Dashboard = () => {
             rating: analyticsRes.data.rating || { average: 0, count: 0 }
           });
         }
+
+        fetchMyInvoices();
 
       } catch (error) {
         console.error('Error fetching dashboard data:', error);
@@ -383,6 +462,12 @@ const Dashboard = () => {
                 setDistance('');
                 fetchAvailability();
                 fetchMyPurchases();
+                generateInvoiceAndUpload({
+                  title: 'Society Milk Purchase',
+                  items: [[`${purchaseQty}L Milk (${deliveryType})`, amount.toFixed(2)]],
+                  totalAmount: amount,
+                  date: new Date()
+                }, response.razorpay_payment_id);
               }
             }
           } catch (err) {
@@ -483,6 +568,12 @@ const Dashboard = () => {
               if (purchaseRes.data?.success) {
                 setOrderMessage({ text: 'Success! Payment processed and order placed.', type: 'success' });
                 setCart({});
+                generateInvoiceAndUpload({
+                  title: 'Cattle Feed & Supplements Order',
+                  items: items.map(item => [`${item.quantity} units of ${supplements.find(s=>s._id===item.supplementId)?.name || 'Supplement'}`, (item.quantity * item.priceAtTime).toFixed(2)]),
+                  totalAmount: amount,
+                  date: new Date()
+                }, paymentResponse.razorpay_payment_id);
               }
             }
           } catch (err) {
@@ -584,6 +675,12 @@ const Dashboard = () => {
                 const res = await axios.get('http://localhost:5000/api/direct-milk/user/requests', config);
                 setMyDirectRequests(res.data.requests);
                 fetchDirectAvailabilities();
+                generateInvoiceAndUpload({
+                  title: 'Direct Milk Purchase',
+                  items: [[`${parseFloat(qty)}L Milk from Farmer`, amount.toFixed(2)]],
+                  totalAmount: amount,
+                  date: requestDate || browseDate
+                }, response.razorpay_payment_id);
               }
             }
           } catch (err) {
@@ -644,6 +741,12 @@ const Dashboard = () => {
                 alert('Success: Payment completed successfully!');
                 const requestsRes = await axios.get('http://localhost:5000/api/direct-milk/user/requests', config);
                 setMyDirectRequests(requestsRes.data.requests);
+                generateInvoiceAndUpload({
+                  title: 'Direct Milk Pre-booking Payment',
+                  items: [['Pre-booked Milk Order Payment', amount.toFixed(2)]],
+                  totalAmount: amount,
+                  date: new Date()
+                }, response.razorpay_payment_id);
               }
             } else {
               alert('Error: Payment verification failed.');
@@ -827,6 +930,13 @@ const Dashboard = () => {
             }, config);
 
             setSubscriptionMessage({ text: 'Subscription created and paid successfully!', type: 'success' });
+            
+            generateInvoiceAndUpload({
+              title: 'Milk Subscription',
+              items: [[`${subscriptionModal.qty}L/day from ${new Date(subscriptionData.startDate).toLocaleDateString()} to ${new Date(subscriptionData.endDate).toLocaleDateString()}`, total.toFixed(2)]],
+              totalAmount: total,
+              date: new Date()
+            }, response.razorpay_payment_id);
             
             // Refresh subscriptions
             const mySubsRes = await axios.get('http://localhost:5000/api/subscriptions/user', config);
@@ -2510,6 +2620,49 @@ const Dashboard = () => {
                     {filteredPurchases.length === 0 && (
                       <Box sx={{ textAlign: 'center', py: 8 }}>
                         <Typography color="text.secondary">No purchase history found.</Typography>
+                      </Box>
+                    )}
+                  </Box>
+
+                  {/* My Invoices Section */}
+                  <Box sx={{ mt: 6, mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Typography variant="h6" sx={{ fontWeight: 700 }}>My Invoices</Typography>
+                  </Box>
+                  <Box sx={{ overflowX: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                      <TableHead sx={{ bgcolor: 'rgba(26, 93, 26, 0.05)' }}>
+                        <TableRow>
+                          {['Date', 'Description', 'Payment ID', 'Amount', 'Action'].map((head) => (
+                            <TableCell key={head} sx={{ fontWeight: 700, color: 'text.secondary', border: 'none' }}>{head}</TableCell>
+                          ))}
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {myInvoices.map((inv) => (
+                          <TableRow key={inv._id} hover sx={{ '&:last-child td, &:last-child th': { border: 0 } }}>
+                            <TableCell>{new Date(inv.date).toLocaleDateString()}</TableCell>
+                            <TableCell sx={{ fontWeight: 600 }}>{inv.description}</TableCell>
+                            <TableCell>{inv.paymentId}</TableCell>
+                            <TableCell sx={{ color: 'primary.main', fontWeight: 800 }}>₹{inv.amount?.toFixed(2)}</TableCell>
+                            <TableCell>
+                              <IconButton 
+                                size="small" 
+                                color="primary" 
+                                component="a" 
+                                href={`http://localhost:5000${inv.fileUrl}`} 
+                                target="_blank"
+                                download
+                              >
+                                <DownloadCloud size={18} />
+                              </IconButton>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </table>
+                    {myInvoices.length === 0 && (
+                      <Box sx={{ textAlign: 'center', py: 4 }}>
+                        <Typography color="text.secondary">No invoices available.</Typography>
                       </Box>
                     )}
                   </Box>

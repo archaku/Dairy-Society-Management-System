@@ -19,6 +19,8 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as ChartTooltip, Legend, ResponsiveContainer, BarChart, Bar, Cell } from 'recharts';
+import jsPDF from 'jspdf';
+import 'jspdf-autotable';
 
 const DRAWER_WIDTH = 260;
 
@@ -114,6 +116,92 @@ const AdminDashboard = () => {
       }
       return true;
     });
+  };
+
+  const generateReportPDF = () => {
+    const doc = new jsPDF();
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(20);
+    doc.text("Dairy Society - Record Analysis Report", 14, 20);
+
+    doc.setFontSize(12);
+    doc.setFont("helvetica", "normal");
+    const dateRangeStr = `Date Range: ${analysisDateRange.start ? analysisDateRange.start : 'From Start'} to ${analysisDateRange.end ? analysisDateRange.end : 'Latest'}`;
+    doc.text(dateRangeStr, 14, 30);
+
+    // Summary section
+    doc.setFontSize(14);
+    doc.setFont("helvetica", "bold");
+    doc.text("Summary", 14, 45);
+    
+    doc.setFontSize(12);
+    doc.setFont("helvetica", "normal");
+    const salesTotal = getFilteredAnalysisData(purchases.filter(p => p.status === 'delivered')).reduce((sum, p) => sum + (p.quantity || 0), 0).toFixed(1);
+    const milkTotal = getFilteredAnalysisData(milkRecords.filter(r => r.status && r.status !== 'rejected')).reduce((sum, r) => sum + (r.quantity || 0), 0).toFixed(1);
+    const bulkTotal = getFilteredAnalysisData(orgSalesHistory).reduce((sum, s) => sum + (s.quantity || 0), 0).toFixed(1);
+
+    doc.text(`Total Sales to Users (Customer Orders): ${salesTotal} L`, 14, 55);
+    doc.text(`Total Milk Collected (From Farmers): ${milkTotal} L`, 14, 63);
+    doc.text(`Bulk Sales to Orgs (Society Stock): ${bulkTotal} L`, 14, 71);
+
+    let startY = 85;
+
+    // Table 1: Sales to Users
+    const salesData = getFilteredAnalysisData(purchases.filter(p => p.status === 'delivered')).map(p => [
+      new Date(p.date || p.createdAt).toLocaleDateString(),
+      p.user?.firstName || 'Unknown',
+      p.quantity
+    ]);
+    if (salesData.length > 0) {
+      doc.autoTable({
+        startY: startY,
+        head: [['Date', 'Customer', 'Qty (L)']],
+        body: salesData,
+        theme: 'grid',
+        headStyles: { fillColor: [41, 128, 185] },
+        styles: { fontSize: 10 },
+        margin: { bottom: 20 },
+      });
+      startY = doc.lastAutoTable.finalY + 15;
+    }
+
+    // Table 2: Milk from Farmers
+    const milkData = getFilteredAnalysisData(milkRecords.filter(r => r.status && r.status !== 'rejected')).map(r => [
+      new Date(r.date).toLocaleDateString(),
+      r.farmer?.firstName || 'Unknown',
+      r.quantity
+    ]);
+    if (milkData.length > 0) {
+      doc.autoTable({
+        startY: startY,
+        head: [['Date', 'Farmer', 'Qty (L)']],
+        body: milkData,
+        theme: 'grid',
+        headStyles: { fillColor: [39, 174, 96] },
+        styles: { fontSize: 10 },
+        margin: { bottom: 20 },
+      });
+      startY = doc.lastAutoTable.finalY + 15;
+    }
+
+    // Table 3: Bulk Sales
+    const bulkData = getFilteredAnalysisData(orgSalesHistory).map(s => [
+      formatDateTime(s.date),
+      s.organizationName,
+      s.quantity
+    ]);
+    if (bulkData.length > 0) {
+      doc.autoTable({
+        startY: startY,
+        head: [['Date', 'Organization', 'Qty (L)']],
+        body: bulkData,
+        theme: 'grid',
+        headStyles: { fillColor: [243, 156, 18] },
+        styles: { fontSize: 10 }
+      });
+    }
+
+    doc.save(`Record_Analysis_${new Date().toISOString().split('T')[0]}.pdf`);
   };
 
   const formatDateTime = (dateStr) => {
@@ -1388,6 +1476,7 @@ const AdminDashboard = () => {
                         onChange={(e) => setAnalysisDateRange({ ...analysisDateRange, end: e.target.value })}
                       />
                       <Button variant="outlined" color="error" onClick={() => setAnalysisDateRange({ start: '', end: '' })}>Clear</Button>
+                      <Button variant="contained" color="secondary" onClick={generateReportPDF} startIcon={<BarChart3 size={18} />}>Download PDF</Button>
                     </Box>
                   </Box>
 

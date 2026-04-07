@@ -41,6 +41,7 @@ app.use('/api/society', require('./routes/societySalesRoutes'));
 app.use('/api/analytics', require('./routes/analyticsRoutes'));
 app.use('/api/payment', require('./routes/paymentRoutes'));
 app.use('/api/subscriptions', require('./routes/subscriptionRoutes'));
+app.use('/api/invoices', require('./routes/invoiceRoutes'));
 
 // Serve static files from uploads directory
 const path = require('path');
