@@ -100,6 +100,7 @@ const Dashboard = () => {
   const [browseDate, setBrowseDate] = React.useState(new Date().toISOString().split('T')[0]);
   const [farmerDate, setFarmerDate] = React.useState(new Date().toISOString().split('T')[0]);
   const [myInvoices, setMyInvoices] = React.useState([]);
+  const [showAllRequests, setShowAllRequests] = React.useState(false);
 
   const fetchMyInvoices = async () => {
     if (user?.role === 'user') {
@@ -1825,7 +1826,7 @@ const Dashboard = () => {
                       )}
                     </Paper>
                   {/* Farmers Offering Subscriptions */}
-                  <Grid item xs={12} md={8}>
+                  <Grid item xs={12}>
                     <Paper sx={{ p: 3, borderRadius: 4, mb: 3, boxShadow: '0 4px 20px rgba(0,0,0,0.05)', border: '1px solid', borderColor: 'divider', bgcolor: 'rgba(26, 93, 26, 0.02)' }}>
                       <Typography variant="h6" sx={{ fontWeight: 700, mb: 3, display: 'flex', alignItems: 'center', gap: 1.5 }}>
                         <Calendar size={22} color={theme.palette.secondary.main} /> Subscription Providers
@@ -1984,8 +1985,8 @@ const Dashboard = () => {
                   </Grid>
 
                   {/* My Direct Requests */}
-                  <Grid item xs={12} md={4}>
-                    <Paper sx={{ p: 3, borderRadius: 4, boxShadow: '0 4px 20px rgba(0,0,0,0.05)', border: '1px solid', borderColor: 'divider' }}>
+                  <Grid item xs={12} md={6}>
+                    <Paper sx={{ p: 3, borderRadius: 4, height: '100%', display: 'flex', flexDirection: 'column', boxShadow: '0 4px 20px rgba(0,0,0,0.05)', border: '1px solid', borderColor: 'divider' }}>
                       <Typography variant="h6" sx={{ fontWeight: 700, mb: 3, display: 'flex', alignItems: 'center', gap: 1.5 }}>
                         <UserCheck size={22} color={theme.palette.primary.main} /> My Requests
                       </Typography>
@@ -1994,8 +1995,8 @@ const Dashboard = () => {
                           <Typography color="text.secondary">You haven't made any direct purchase requests yet.</Typography>
                         </Box>
                       ) : (
-                        <Box>
-                          {myDirectRequests.map((req) => (
+                        <Box sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
+                          {(showAllRequests ? myDirectRequests : myDirectRequests.slice(0, 3)).map((req) => (
                             <Card key={req._id} variant="outlined" sx={{ mb: 2, borderRadius: 3 }}>
                               <CardContent sx={{ '&:last-child': { pb: 2 } }}>
                                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
@@ -2042,6 +2043,16 @@ const Dashboard = () => {
                               </CardContent>
                             </Card>
                           ))}
+                          {myDirectRequests.length > 3 && (
+                            <Button 
+                              fullWidth 
+                              variant="text" 
+                              onClick={() => setShowAllRequests(!showAllRequests)}
+                              sx={{ mt: 'auto', fontWeight: 700 }}
+                            >
+                              {showAllRequests ? 'View Less' : `View All (${myDirectRequests.length})`}
+                            </Button>
+                          )}
                         </Box>
                       )}
                       {directSaleMessage.text && (
@@ -2057,8 +2068,8 @@ const Dashboard = () => {
                   </Grid>
 
                   {/* My Subscriptions */}
-                  <Grid item xs={12}>
-                    <Paper sx={{ p: 3, borderRadius: 4, boxShadow: '0 4px 20px rgba(0,0,0,0.05)', border: '1px solid', borderColor: 'divider' }}>
+                  <Grid item xs={12} md={6}>
+                    <Paper sx={{ p: 3, borderRadius: 4, height: '100%', boxShadow: '0 4px 20px rgba(0,0,0,0.05)', border: '1px solid', borderColor: 'divider' }}>
                       <Typography variant="h6" sx={{ fontWeight: 700, mb: 3, display: 'flex', alignItems: 'center', gap: 1.5 }}>
                         <Calendar size={22} color={theme.palette.primary.main} /> My Active Subscriptions
                       </Typography>
@@ -2596,7 +2607,7 @@ const Dashboard = () => {
                     <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                       <TableHead sx={{ bgcolor: 'rgba(26, 93, 26, 0.05)' }}>
                         <TableRow>
-                          {['Date', 'Qty (L)', 'Rate', 'Delivery', 'Total', 'Status', 'Invoice'].map((head) => (
+                          {['Date', 'Qty (L)', 'Rate', 'Delivery', 'Total', 'Status'].map((head) => (
                             <TableCell key={head} sx={{ fontWeight: 700, color: 'text.secondary', border: 'none' }}>{head}</TableCell>
                           ))}
                         </TableRow>
@@ -2620,19 +2631,6 @@ const Dashboard = () => {
                                 sx={{ fontWeight: 700, textTransform: 'uppercase', fontSize: '0.65rem' }}
                               />
                             </TableCell>
-                            <TableCell>
-                              {purchase.invoicePath ? (
-                                <IconButton 
-                                  size="small" 
-                                  color="primary" 
-                                  component="a" 
-                                  href={`http://localhost:5000${purchase.invoicePath}`} 
-                                  target="_blank"
-                                >
-                                  <DownloadCloud size={18} />
-                                </IconButton>
-                              ) : '-'}
-                            </TableCell>
                           </TableRow>
                         ))}
                       </TableBody>
@@ -2644,48 +2642,7 @@ const Dashboard = () => {
                     )}
                   </Box>
 
-                  {/* My Invoices Section */}
-                  <Box sx={{ mt: 6, mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <Typography variant="h6" sx={{ fontWeight: 700 }}>My Invoices</Typography>
-                  </Box>
-                  <Box sx={{ overflowX: 'auto' }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                      <TableHead sx={{ bgcolor: 'rgba(26, 93, 26, 0.05)' }}>
-                        <TableRow>
-                          {['Date', 'Description', 'Payment ID', 'Amount', 'Action'].map((head) => (
-                            <TableCell key={head} sx={{ fontWeight: 700, color: 'text.secondary', border: 'none' }}>{head}</TableCell>
-                          ))}
-                        </TableRow>
-                      </TableHead>
-                      <TableBody>
-                        {myInvoices.map((inv) => (
-                          <TableRow key={inv._id} hover sx={{ '&:last-child td, &:last-child th': { border: 0 } }}>
-                            <TableCell>{new Date(inv.date).toLocaleDateString()}</TableCell>
-                            <TableCell sx={{ fontWeight: 600 }}>{inv.description}</TableCell>
-                            <TableCell>{inv.paymentId}</TableCell>
-                            <TableCell sx={{ color: 'primary.main', fontWeight: 800 }}>₹{inv.amount?.toFixed(2)}</TableCell>
-                            <TableCell>
-                              <IconButton 
-                                size="small" 
-                                color="primary" 
-                                component="a" 
-                                href={`http://localhost:5000${inv.fileUrl}`} 
-                                target="_blank"
-                                download
-                              >
-                                <DownloadCloud size={18} />
-                              </IconButton>
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </table>
-                    {myInvoices.length === 0 && (
-                      <Box sx={{ textAlign: 'center', py: 4 }}>
-                        <Typography color="text.secondary">No invoices available.</Typography>
-                      </Box>
-                    )}
-                  </Box>
+
                 </Paper>
               )}
 

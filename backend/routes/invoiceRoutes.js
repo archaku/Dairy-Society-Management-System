@@ -57,6 +57,18 @@ router.post('/upload', verifyAuth, upload.single('invoicePdf'), async (req, res)
 
         await newInvoice.save();
 
+        if (paymentId) {
+            const MilkPurchase = require('../models/MilkPurchase');
+            const SupplementPurchase = require('../models/SupplementPurchase');
+            const DirectMilkSale = require('../models/DirectMilkSale');
+            
+            await Promise.all([
+                MilkPurchase.findOneAndUpdate({ paymentId }, { invoicePath: newInvoice.fileUrl }),
+                SupplementPurchase.findOneAndUpdate({ paymentId }, { invoicePath: newInvoice.fileUrl }),
+                DirectMilkSale.findOneAndUpdate({ paymentId }, { invoicePath: newInvoice.fileUrl })
+            ]);
+        }
+
         res.status(201).json({ success: true, invoice: newInvoice });
     } catch (error) {
         console.error('Invoice upload error:', error);
